@@ -14,17 +14,17 @@ export default function RankineChart({ currentResult, currentTab }) {
   const domeRight = [...satT].reverse().map(row => ({ x: row[7], y: row[0] }));
   const domeData = [...domeLeft, ...domeRight];
 
-  // Lógica dinâmica: Se o usuário pesquisar algo, o ciclo ajusta o teto (T_high)
-  let T_high = 200; // Padrão
-  if (currentResult && !currentResult.error) {
-    if (currentTab === 'sat-t') T_high = currentResult.rawVal;
-    if (currentTab === 'sat-p') T_high = currentResult.rawVal; // Usa o Tsat
+  // CORREÇÃO: Agora o T_high atualiza independente da aba que o usuário está
+  let T_high = 200; // Temperatura Padrão
+  if (currentResult && !currentResult.error && currentResult.rawVal !== undefined) {
+    T_high = currentResult.rawVal;
   }
   
   const T_low = 40; // Temperatura do condensador fixada para o exemplo visual
 
   // Função simples para achar as entropias baseadas na temperatura
   const getS = (T) => {
+    // Se a temperatura for maior que o ponto crítico (374.14), travamos no último valor da tabela
     const row = satT.find(r => r[0] >= T) || satT[satT.length-1];
     return { sf: row[6], sg: row[7] };
   };
@@ -46,8 +46,8 @@ export default function RankineChart({ currentResult, currentTab }) {
       {
         label: `Ciclo Ideal de Rankine (Tmax = ${T_high.toFixed(1)} °C)`,
         data: cycleData,
-        borderColor: '#ffa726',
-        backgroundColor: '#ffa726',
+        borderColor: '#10b981', // Verde Esmeralda (Novo Tema)
+        backgroundColor: '#10b981',
         showLine: true,
         borderWidth: 2,
         pointRadius: 4,
@@ -56,7 +56,7 @@ export default function RankineChart({ currentResult, currentTab }) {
       {
         label: 'Cúpula de Saturação',
         data: domeData,
-        borderColor: '#556070',
+        borderColor: '#475569', // Cinza azulado (Novo Tema)
         backgroundColor: 'transparent',
         showLine: true,
         borderWidth: 1.5,
@@ -73,23 +73,33 @@ export default function RankineChart({ currentResult, currentTab }) {
     scales: {
       x: {
         type: 'linear', position: 'bottom',
-        title: { display: true, text: 'Entropia s [kJ/(kg·K)]', color: '#8a93a6' },
-        grid: { color: '#2a2f3a' }, ticks: { color: '#8a93a6' }
+        title: { display: true, text: 'Entropia s [kJ/(kg·K)]', color: '#94a3b8' },
+        grid: { color: '#334155' }, ticks: { color: '#94a3b8' }
       },
       y: {
-        title: { display: true, text: 'Temperatura T [°C]', color: '#8a93a6' },
-        grid: { color: '#2a2f3a' }, ticks: { color: '#8a93a6' },
-        min: 0, max: 400
+        title: { display: true, text: 'Temperatura T [°C]', color: '#94a3b8' },
+        grid: { color: '#334155' }, ticks: { color: '#94a3b8' },
+        // O eixo Y agora cresce automaticamente se a temperatura pesquisada for muito alta
+        min: 0, max: Math.max(400, T_high + 20) 
       }
     },
     plugins: {
-      legend: { labels: { color: '#e8ecf2' } },
+      legend: { labels: { color: '#f8fafc' } },
       tooltip: { callbacks: { label: (ctx) => `s: ${ctx.parsed.x.toFixed(4)}, T: ${ctx.parsed.y} °C` } }
     }
   };
 
   return (
-    <div style={{ height: '400px', width: '100%', padding: '1.5rem', background: '#13161b', borderRadius: '8px', border: '1px solid #363d4d', marginBottom: '1.5rem' }}>
+    <div style={{ 
+      height: '400px', 
+      width: '100%', 
+      padding: '1.5rem', 
+      background: '#1e293b', /* Fundo do container (Novo Tema) */
+      borderRadius: '12px', 
+      border: '1px solid #334155', 
+      marginBottom: '1.5rem',
+      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+    }}>
       <Scatter data={data} options={options} />
     </div>
   );

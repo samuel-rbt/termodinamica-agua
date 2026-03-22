@@ -33,7 +33,6 @@ function findThreePoints(arr, val, idx) {
   if (lo === 0) return [0, 1, 2];
   if (lo === arr.length - 2) return [lo - 1, lo, lo + 1];
   
-  // Escolhe o 3º ponto mais próximo para maior precisão
   if (Math.abs(val - arr[lo - 1][idx]) < Math.abs(val - arr[lo + 2][idx])) {
     return [lo - 1, lo, lo + 1];
   }
@@ -41,10 +40,10 @@ function findThreePoints(arr, val, idx) {
 }
 
 const TABS = [
-  { id: 'sat-t', label: 'Saturada por T' },
-  { id: 'sat-p', label: 'Saturada por P' },
-  { id: 'sup',   label: 'Vapor superaquecido' },
-  { id: 'liq',   label: 'Líquido comprimido' },
+  { id: 'sat-t', label: 'Saturada por Temperatura' },
+  { id: 'sat-p', label: 'Saturada por Pressão' },
+  { id: 'sup',   label: 'Vapor Superaquecido' },
+  { id: 'liq',   label: 'Líquido Comprimido' },
 ]
 
 export default function App() {
@@ -54,6 +53,9 @@ export default function App() {
   const [liqKey, setLiqKey] = useState(Object.keys(liqData)[0])
   const [result, setResult] = useState(null)
   const [highlightVal, setHighlightVal] = useState(null)
+  
+  // NOVO: Controle do Menu Hambúrguer
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const handleSearch = useCallback(() => {
     const val = parseFloat(searchVal)
@@ -101,7 +103,8 @@ export default function App() {
   }, [tab, searchVal, supKey, liqKey])
 
   const handleTabChange = (t) => {
-    setTab(t); setResult(null); setSearchVal(''); setHighlightVal(null)
+    setTab(t); setResult(null); setSearchVal(''); setHighlightVal(null);
+    setIsMenuOpen(false); // Fecha o menu ao escolher uma opção
   }
 
   const tableData = () => {
@@ -112,9 +115,35 @@ export default function App() {
   }
 
   const { headers, rows, keyIdx } = tableData()
+  
+  // Pegando o nome da aba ativa para mostrar na tela
+  const activeTabLabel = TABS.find(t => t.id === tab).label;
 
   return (
     <div className={styles.app}>
+      
+      {/* NOVO: Fundo escuro quando o menu abre */}
+      {isMenuOpen && <div className={styles.overlay} onClick={() => setIsMenuOpen(false)}></div>}
+
+      {/* NOVO: Menu Lateral (Sidebar) */}
+      <div className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}>
+        <div className={styles.sidebarHeader}>
+          <span className={styles.sidebarTitle}>Navegação</span>
+          <button className={styles.closeBtn} onClick={() => setIsMenuOpen(false)}>✕</button>
+        </div>
+        <nav className={styles.sidebarNav}>
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              className={`${styles.navItem} ${tab === t.id ? styles.navItemActive : ''}`}
+              onClick={() => handleTabChange(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.logo}>
@@ -124,21 +153,17 @@ export default function App() {
               <div className={styles.logoSub}>Propriedades da Água e Vapor</div>
             </div>
           </div>
+          {/* NOVO: Botão Hambúrguer */}
+          <button className={styles.hamburgerBtn} onClick={() => setIsMenuOpen(true)}>
+            ☰
+          </button>
         </div>
       </header>
 
       <main className={styles.main}>
-        <div className={styles.tabs}>
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              className={`${styles.tab} ${tab === t.id ? styles.tabActive : ''}`}
-              onClick={() => handleTabChange(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        
+        {/* NOVO: Título Dinâmico mostrando qual tabela estamos vendo */}
+        <h2 className={styles.activeCategoryTitle}>{activeTabLabel}</h2>
 
         <div className={styles.searchBar}>
           {(tab === 'sup') && (
@@ -169,7 +194,7 @@ export default function App() {
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 placeholder={tab === 'sat-t' ? 'ex: 120' : tab === 'sat-p' ? 'ex: 5.0' : 'ex: 300'}
               />
-              <button onClick={handleSearch}>Buscar</button>
+              <button className={styles.searchBtn} onClick={handleSearch}>Buscar</button>
             </div>
           </div>
         </div>
@@ -182,7 +207,7 @@ export default function App() {
               <>
                 <div className={styles.resultHeader}>
                   <span className={styles.resultTitle}>{result.title}</span>
-                  {result.interped && <span className={styles.interpBadge} style={{background: 'rgba(79,195,247,0.1)', color: '#4fc3f7', borderColor: '#4fc3f7'}}>interpolação quadrática</span>}
+                  {result.interped && <span className={styles.interpBadge} style={{background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: '#10b981'}}>interpolação quadrática</span>}
                 </div>
                 <div className={styles.resultGrid}>
                   {result.keys.map((k, i) => (
@@ -221,20 +246,12 @@ export default function App() {
         </div>
       </main>
 
-      {/* Informação de Propriedade e Autoria */}
       <footer style={{
-        textAlign: 'center',
-        padding: '24px 20px',
-        color: 'var(--text3)',
-        fontSize: '12px',
-        fontFamily: 'var(--font-mono)',
-        borderTop: '1px solid var(--border)',
-        marginTop: '2rem',
-        letterSpacing: '0.05em'
+        textAlign: 'center', padding: '24px 20px', color: 'var(--text3)', fontSize: '12px',
+        fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--border)', marginTop: '2rem', letterSpacing: '0.05em'
       }}>
-        Desenvolvido por: <strong>Murilo Roberto Matias da Silva</strong> | Matrícula: 30313473
+        Desenvolvido por: <strong style={{color: 'var(--text)'}}>Murilo Roberto Matias da Silva</strong> | Matrícula: 30313473
       </footer>
-
     </div>
   )
 }
