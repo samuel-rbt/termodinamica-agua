@@ -54,7 +54,6 @@ export default function App() {
   const [result, setResult] = useState(null)
   const [highlightVal, setHighlightVal] = useState(null)
   
-  // NOVO: Controle do Menu Hambúrguer
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const handleSearch = useCallback(() => {
@@ -104,7 +103,7 @@ export default function App() {
 
   const handleTabChange = (t) => {
     setTab(t); setResult(null); setSearchVal(''); setHighlightVal(null);
-    setIsMenuOpen(false); // Fecha o menu ao escolher uma opção
+    setIsMenuOpen(false);
   }
 
   const tableData = () => {
@@ -115,17 +114,13 @@ export default function App() {
   }
 
   const { headers, rows, keyIdx } = tableData()
-  
-  // Pegando o nome da aba ativa para mostrar na tela
   const activeTabLabel = TABS.find(t => t.id === tab).label;
 
   return (
     <div className={styles.app}>
       
-      {/* NOVO: Fundo escuro quando o menu abre */}
       {isMenuOpen && <div className={styles.overlay} onClick={() => setIsMenuOpen(false)}></div>}
 
-      {/* NOVO: Menu Lateral (Sidebar) */}
       <div className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <span className={styles.sidebarTitle}>Navegação</span>
@@ -153,48 +148,46 @@ export default function App() {
               <div className={styles.logoSub}>Propriedades da Água e Vapor</div>
             </div>
           </div>
-          {/* NOVO: Botão Hambúrguer */}
-          <button className={styles.hamburgerBtn} onClick={() => setIsMenuOpen(true)}>
-            ☰
-          </button>
+          <button className={styles.hamburgerBtn} onClick={() => setIsMenuOpen(true)}>☰</button>
         </div>
       </header>
 
       <main className={styles.main}>
         
-        {/* NOVO: Título Dinâmico mostrando qual tabela estamos vendo */}
-        <h2 className={styles.activeCategoryTitle}>{activeTabLabel}</h2>
-
         <div className={styles.searchBar}>
-          {(tab === 'sup') && (
+          <h2 className={styles.activeCategoryTitle}>{activeTabLabel}</h2>
+
+          <div className={styles.searchInputsWrapper}>
+            {(tab === 'sup') && (
+              <div className={styles.searchGroup}>
+                <label className={styles.searchLabel}>Pressão</label>
+                <select value={supKey} onChange={e => { setSupKey(e.target.value); setResult(null); setHighlightVal(null) }}>
+                  {Object.keys(supData).map(k => <option key={k} value={k}>{k} bar</option>)}
+                </select>
+              </div>
+            )}
+            {(tab === 'liq') && (
+              <div className={styles.searchGroup}>
+                <label className={styles.searchLabel}>Pressão</label>
+                <select value={liqKey} onChange={e => { setLiqKey(e.target.value); setResult(null); setHighlightVal(null) }}>
+                  {Object.keys(liqData).map(k => <option key={k} value={k}>{k} MPa</option>)}
+                </select>
+              </div>
+            )}
             <div className={styles.searchGroup}>
-              <label className={styles.searchLabel}>Pressão</label>
-              <select value={supKey} onChange={e => { setSupKey(e.target.value); setResult(null); setHighlightVal(null) }}>
-                {Object.keys(supData).map(k => <option key={k} value={k}>{k} bar</option>)}
-              </select>
-            </div>
-          )}
-          {(tab === 'liq') && (
-            <div className={styles.searchGroup}>
-              <label className={styles.searchLabel}>Pressão</label>
-              <select value={liqKey} onChange={e => { setLiqKey(e.target.value); setResult(null); setHighlightVal(null) }}>
-                {Object.keys(liqData).map(k => <option key={k} value={k}>{k} MPa</option>)}
-              </select>
-            </div>
-          )}
-          <div className={styles.searchGroup}>
-            <label className={styles.searchLabel}>
-              {tab === 'sat-t' ? 'Temperatura (°C)' : tab === 'sat-p' ? 'Pressão (bar)' : 'Temperatura (°C)'}
-            </label>
-            <div className={styles.searchInput}>
-              <input
-                type="number"
-                value={searchVal}
-                onChange={e => setSearchVal(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                placeholder={tab === 'sat-t' ? 'ex: 120' : tab === 'sat-p' ? 'ex: 5.0' : 'ex: 300'}
-              />
-              <button className={styles.searchBtn} onClick={handleSearch}>Buscar</button>
+              <label className={styles.searchLabel}>
+                {tab === 'sat-t' ? 'Temperatura (°C)' : tab === 'sat-p' ? 'Pressão (bar)' : 'Temperatura (°C)'}
+              </label>
+              <div className={styles.searchInput}>
+                <input
+                  type="number"
+                  value={searchVal}
+                  onChange={e => setSearchVal(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  placeholder={tab === 'sat-t' ? 'ex: 120' : tab === 'sat-p' ? 'ex: 5.0' : 'ex: 300'}
+                />
+                <button onClick={handleSearch}>Buscar</button>
+              </div>
             </div>
           </div>
         </div>
@@ -223,32 +216,40 @@ export default function App() {
           </div>
         )}
 
-        <RankineChart currentResult={result} currentTab={tab} />
+        {/* Dashboard Lado a Lado */}
+        <div className={styles.dashboardGrid}>
+          
+          <div className={styles.chartWrapper}>
+             {/* Importante: O arquivo RankineChart.jsx continua o mesmo do passo anterior! */}
+             <RankineChart currentResult={result} currentTab={tab} />
+          </div>
 
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {headers.map(h => <th key={h}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, ri) => (
-                <tr
-                  key={ri}
-                  className={highlightVal !== null && row[keyIdx] === highlightVal ? styles.highlighted : ''}
-                >
-                  {row.map((v, ci) => <td key={ci}>{fmt(v)}</td>)}
+          <div className={`${styles.tableWrap} ${styles.tableScroll}`}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  {headers.map(h => <th key={h}>{h}</th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row, ri) => (
+                  <tr
+                    key={ri}
+                    className={highlightVal !== null && row[keyIdx] === highlightVal ? styles.highlighted : ''}
+                  >
+                    {row.map((v, ci) => <td key={ci}>{fmt(v)}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </main>
 
       <footer style={{
-        textAlign: 'center', padding: '24px 20px', color: 'var(--text3)', fontSize: '12px',
-        fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--border)', marginTop: '2rem', letterSpacing: '0.05em'
+        textAlign: 'center', padding: '24px 20px', color: 'var(--text3)', fontSize: '13px',
+        fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--border)', marginTop: 'auto', letterSpacing: '0.05em'
       }}>
         Desenvolvido por: <strong style={{color: 'var(--text)'}}>Murilo Roberto Matias da Silva</strong> | Matrícula: 30313473
       </footer>
