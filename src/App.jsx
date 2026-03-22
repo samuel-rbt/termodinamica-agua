@@ -14,7 +14,7 @@ function fmt(v) {
   return parseFloat(v.toPrecision(6)).toString()
 }
 
-// NOVO: Interpolação Quadrática (Polinômio de Lagrange)
+// Interpolação Quadrática (Polinômio de Lagrange)
 function interpQuad(x0, y0, x1, y1, x2, y2, x) {
   const L0 = ((x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2));
   const L1 = ((x - x0) * (x - x2)) / ((x1 - x0) * (x1 - x2));
@@ -22,7 +22,7 @@ function interpQuad(x0, y0, x1, y1, x2, y2, x) {
   return y0 * L0 + y1 * L1 + y2 * L2;
 }
 
-// NOVO: Busca de 3 pontos para a quadrática
+// Busca de 3 pontos para a quadrática
 function findThreePoints(arr, val, idx) {
   let lo = -1;
   for (let i = 0; i < arr.length - 1; i++) {
@@ -76,7 +76,7 @@ export default function App() {
       const row = satP[p0][0] === val ? satP[p0] : satP[p1][0] === val ? satP[p1] :
         satPKeys.map((_, i) => interpQuad(satP[p0][0], satP[p0][i], satP[p1][0], satP[p1][i], satP[p2][0], satP[p2][i], val))
       const interped = satP[p0][0] !== val && satP[p1][0] !== val;
-      setResult({ title: `P = ${val} bar`, interped, keys: satPKeys, units: satPUnits, values: row, rawVal: row[1] }) // rawVal passa Tsat
+      setResult({ title: `P = ${val} bar`, interped, keys: satPKeys, units: satPUnits, values: row, rawVal: row[1] })
     
     } else if (tab === 'sup') {
       const d = supData[supKey]
@@ -182,7 +182,6 @@ export default function App() {
               <>
                 <div className={styles.resultHeader}>
                   <span className={styles.resultTitle}>{result.title}</span>
-                  {/* NOVO: Badge atualizada para quadrática */}
                   {result.interped && <span className={styles.interpBadge} style={{background: 'rgba(79,195,247,0.1)', color: '#4fc3f7', borderColor: '#4fc3f7'}}>interpolação quadrática</span>}
                 </div>
                 <div className={styles.resultGrid}>
@@ -199,7 +198,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Passando o resultado para o gráfico se ajustar dinamicamente */}
         <RankineChart currentResult={result} currentTab={tab} />
 
         <div className={styles.tableWrap}>
@@ -222,6 +220,21 @@ export default function App() {
           </table>
         </div>
       </main>
+
+      {/* Informação de Propriedade e Autoria */}
+      <footer style={{
+        textAlign: 'center',
+        padding: '24px 20px',
+        color: 'var(--text3)',
+        fontSize: '12px',
+        fontFamily: 'var(--font-mono)',
+        borderTop: '1px solid var(--border)',
+        marginTop: '2rem',
+        letterSpacing: '0.05em'
+      }}>
+        Desenvolvido por: <strong>Murilo Roberto Matias da Silva</strong> | Matrícula: 30313473
+      </footer>
+
     </div>
   )
 }
