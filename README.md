@@ -78,6 +78,10 @@ Se quiser compilar o código para colocar em um servidor real:
 npm run build
 ```
 
+##  Render
+
+Site disponivel na plataforma SAS Render
+
 ---
 
 ## 📌 Observações
