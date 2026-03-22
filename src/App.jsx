@@ -216,11 +216,11 @@ export default function App() {
           </div>
         )}
 
-        {/* Dashboard Lado a Lado */}
+        {/* Dashboard */}
         <div className={styles.dashboardGrid}>
           
           <div className={styles.chartWrapper}>
-             {/* Importante: O arquivo RankineChart.jsx continua o mesmo do passo anterior! */}
+             {/* RankineChart.jsx */}
              <RankineChart currentResult={result} currentTab={tab} />
           </div>
 

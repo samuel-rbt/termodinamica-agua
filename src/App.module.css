@@ -65,7 +65,7 @@
 .resultVal { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--text); }
 .resultUnit { font-size: 11px; font-family: var(--font-mono); color: var(--accent); margin-top: 2px; }
 
-/* Layout Dashboard Lado a Lado */
+
 .dashboardGrid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start; }
 .chartWrapper { margin: 0; }
 .tableScroll { margin: 0; height: 440px; overflow-y: auto; }
@@ -84,7 +84,7 @@
 @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* Responsividade e Ajuste do Menu no Celular */
+
 @media (max-width: 1024px) {
   .dashboardGrid { grid-template-columns: 1fr; }
   .tableScroll { height: auto; max-height: 500px; }
@@ -96,7 +96,7 @@
   .searchInputsWrapper { flex-direction: column; align-items: stretch; }
   .searchInput { flex-direction: column; align-items: stretch; }
   
-  /* CORREÇÃO DO MENU: O !important força a abertura no celular */
+ 
   .sidebar { width: 85%; right: -85%; }
   .sidebarOpen { right: 0 !important; } 
 }
