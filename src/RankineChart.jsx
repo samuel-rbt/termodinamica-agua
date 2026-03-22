@@ -44,7 +44,7 @@ export default function RankineChart({ currentResult, currentTab }) {
   const data = {
     datasets: [
       {
-        label: `Ciclo Ideal de Rankine (Tmax = ${T_high.toFixed(1)} °C)`,
+        label: `Ciclo Ideal (Tmax = ${T_high.toFixed(1)} °C)`,
         data: cycleData,
         borderColor: '#10b981', // Verde Esmeralda 
         backgroundColor: '#10b981',
@@ -54,7 +54,7 @@ export default function RankineChart({ currentResult, currentTab }) {
         tension: 0,
       },
       {
-        label: 'Cúpula de Saturação',
+        label: 'Saturação',
         data: domeData,
         borderColor: '#475569', // Cinza azulado 
         backgroundColor: 'transparent',
