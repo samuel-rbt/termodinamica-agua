@@ -1,7 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Paleta Midnight & Emerald */
+  /* Paleta Midnight & Emerald do Murilo */
   --bg: #0f172a;        
   --bg2: #1e293b;       
   --bg3: #334155;       

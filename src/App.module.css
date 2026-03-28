@@ -289,6 +289,8 @@
   margin: 6px 0;
   padding-left: 8px;
   border-left: 2px solid var(--border2);
+  white-space: pre-wrap; /* MÁGICA PARA O PASSO A PASSO DA MATEMÁTICA */
+  line-height: 1.6;
 }
 
 .footer {

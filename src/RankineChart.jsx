@@ -1,13 +1,11 @@
 import React from 'react';
-import {
-  Chart as ChartJS, LinearScale, PointElement, LineElement, Tooltip, Legend, Title
-} from 'chart.js';
+import { Chart as ChartJS, LinearScale, PointElement, LineElement, Tooltip, Legend, Title } from 'chart.js';
 import { Scatter } from 'react-chartjs-2';
 import { satT } from './data';
 
 ChartJS.register(LinearScale, PointElement, LineElement, Tooltip, Legend, Title);
 
-export default function RankineChart({ analysis }) {
+export default function RankineChart({ analysis, currentResult }) {
   
   const domeLeft = satT.map(row => ({ x: row[6], y: row[0] }));
   const domeRight = [...satT].reverse().map(row => ({ x: row[7], y: row[0] }));
@@ -16,6 +14,8 @@ export default function RankineChart({ analysis }) {
   let T_high = 200; 
   if (analysis && analysis.T) {
     T_high = analysis.T;
+  } else if (currentResult && currentResult.rawVal) {
+    T_high = currentResult.rawVal;
   }
   
   const T_low = 40; 
@@ -37,20 +37,17 @@ export default function RankineChart({ analysis }) {
     { x: sHigh.sg, y: T_high }  
   ];
 
-  // Plota o Ponto de Estado Dinâmico
   let statePoint = [];
   let isMixture = false;
 
   if (analysis && analysis.s_val !== undefined && analysis.s_val !== null) {
     if (Array.isArray(analysis.s_val)) {
-      // Mistura: Linha cobrindo o intervalo de saturação
       isMixture = true;
       statePoint = [
         { x: analysis.s_val[0], y: analysis.T },
         { x: analysis.s_val[1], y: analysis.T }
       ];
     } else {
-      // Ponto único para vapor ou líquido
       statePoint = [{ x: analysis.s_val, y: analysis.T }];
     }
   }
@@ -60,8 +57,8 @@ export default function RankineChart({ analysis }) {
       {
         label: `Ciclo Ideal (${T_high.toFixed(1)} °C)`,
         data: cycleData,
-        borderColor: 'rgba(79,195,247,0.5)', // Cor suave baseada no seu CSS (var--accent)
-        backgroundColor: 'rgba(79,195,247,0.5)',
+        borderColor: 'rgba(16, 185, 129, 0.6)', // Verde Esmeralda (Murilo)
+        backgroundColor: 'rgba(16, 185, 129, 0.6)',
         showLine: true,
         borderWidth: 1.5,
         pointRadius: 0,
@@ -70,7 +67,7 @@ export default function RankineChart({ analysis }) {
       {
         label: 'Cúpula de Saturação',
         data: domeData,
-        borderColor: '#556070', // text3 do seu CSS
+        borderColor: '#475569', 
         backgroundColor: 'transparent',
         showLine: true,
         borderWidth: 1.5,
@@ -79,10 +76,10 @@ export default function RankineChart({ analysis }) {
         tension: 0.1,
       },
       {
-        label: isMixture ? 'Mudança de Fase (Mistura)' : 'Estado da Água',
+        label: isMixture ? 'Mudança de Fase (Mistura)' : 'Ponto Calculado',
         data: statePoint,
-        borderColor: analysis ? analysis.color : '#4fc3f7',
-        backgroundColor: analysis ? analysis.color : '#4fc3f7',
+        borderColor: analysis ? analysis.color : '#10b981',
+        backgroundColor: analysis ? analysis.color : '#10b981',
         showLine: isMixture,
         borderWidth: 3,
         pointRadius: 6,
@@ -98,17 +95,17 @@ export default function RankineChart({ analysis }) {
     scales: {
       x: {
         type: 'linear', position: 'bottom',
-        title: { display: true, text: 'Entropia s [kJ/(kg·K)]', color: '#8a93a6' },
-        grid: { color: '#2a2f3a' }, ticks: { color: '#8a93a6' }
+        title: { display: true, text: 'Entropia s [kJ/(kg·K)]', color: '#94a3b8' },
+        grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' }
       },
       y: {
-        title: { display: true, text: 'Temperatura T [°C]', color: '#8a93a6' },
-        grid: { color: '#2a2f3a' }, ticks: { color: '#8a93a6' },
+        title: { display: true, text: 'Temperatura T [°C]', color: '#94a3b8' },
+        grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' },
         min: 0, max: Math.max(400, T_high + 20) 
       }
     },
     plugins: {
-      legend: { labels: { color: '#e8ecf2', font: { family: "'IBM Plex Mono', monospace" } } },
+      legend: { labels: { color: '#f8fafc', font: { family: "'JetBrains Mono', monospace" } } },
       tooltip: { callbacks: { label: (ctx) => `s: ${ctx.parsed.x.toFixed(4)}, T: ${ctx.parsed.y} °C` } }
     }
   };
