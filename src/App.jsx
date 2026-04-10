@@ -65,8 +65,8 @@ export default function App() {
 
   const handleSearch = useCallback(() => {
     setResult(null); setAnalysis(null); setHighlightVal(null); setTableInfo(null);
-    const valP = parseFloat(inputP); // PASCAL
-    const valT = parseFloat(inputT); // °C
+    const valP = parseFloat(inputP); 
+    const valT = parseFloat(inputT); 
     const hasP = !isNaN(valP);
     const hasT = !isNaN(valT);
 
@@ -77,12 +77,12 @@ export default function App() {
 
     if (hasT && !hasP) {
       const pts = findThreePoints(satT, valT, 0);
-      if (pts[0] === -1) { setResult({ error: "Temperatura fora da tabela (0.01 a 374.14 °C)." }); return; }
+      if (pts[0] === -1) { setResult({ error: "Temperatura fora da tabela (Mínimo: 0.01 °C | Máximo: 374.14 °C)." }); return; }
       
       const steps = generateCalcSteps(satT[pts[0]][0], satT[pts[0]][1], satT[pts[1]][0], satT[pts[1]][1], satT[pts[2]][0], satT[pts[2]][1], valT, "Psat (bar)");
       rowData = satTKeys.map((_, i) => interpQuad(satT[pts[0]][0], satT[pts[0]][i], satT[pts[1]][0], satT[pts[1]][i], satT[pts[2]][0], satT[pts[2]][i], valT));
       
-      rowData[1] = rowData[1] * 100000; // Converte o resultado de pressão para Pascal
+      rowData[1] = rowData[1] * 100000;
       let tUnits = [...satTUnits]; tUnits[1] = 'Pa';
       
       const modRows = satT.map(r => { let nr = [...r]; nr[1] *= 100000; return nr; });
@@ -100,15 +100,15 @@ export default function App() {
       setResult({ title: `Resultados para T = ${valT} °C`, interped: satT[pts[0]][0] !== valT, keys: satTKeys, units: tUnits, values: rowData, rawVal: valT });
     
     } else if (hasP && !hasT) {
-      const valBar = valP / 100000; // Converte Pa -> Bar para busca interna nas tabelas
+      const valBar = valP / 100000; 
       const pts = findThreePoints(satP, valBar, 0);
-      if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela de saturação (Mínimo: 611 Pa | Máximo: 22.090.000 Pa)." }); return; }
+      if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela de saturação. (Mínimo: 611 Pa | Máximo: 22.090.000 Pa)." }); return; }
       const [p0, p1, p2] = pts;
       
       const steps = generateCalcSteps(satP[p0][0], satP[p0][1], satP[p1][0], satP[p1][1], satP[p2][0], satP[p2][1], valBar, "Tsat (°C)");
       rowData = satPKeys.map((_, i) => interpQuad(satP[p0][0], satP[p0][i], satP[p1][0], satP[p1][i], satP[p2][0], satP[p2][i], valBar));
       
-      rowData[0] = rowData[0] * 100000; // Converte de volta para Pascal
+      rowData[0] = rowData[0] * 100000;
       let pUnits = [...satPUnits]; pUnits[0] = 'Pa';
 
       const modRows = satP.map(r => { let nr = [...r]; nr[0] *= 100000; return nr; });
@@ -128,7 +128,7 @@ export default function App() {
     } else if (hasP && hasT) {
       const valBar = valP / 100000;
       const ptsP = findThreePoints(satP, valBar, 0);
-      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites termodinâmicos de saturação (611 Pa a 22.090.000 Pa)." }); return; }
+      if (ptsP[0] === -1) { setResult({ error: "Pressão informada não possui dados termodinâmicos tabulados (Mínimo: 611 Pa | Máximo: 22.090.000 Pa)." }); return; }
       
       const Tsat = interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valBar);
       const stepsTsat = generateCalcSteps(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valBar, "Tsat");
@@ -144,7 +144,11 @@ export default function App() {
         const { key, table } = findClosestTable(supData, valBar);
         memorial.push(`Buscando em tabela de Vapor (P_ref = ${key} bar).`);
         const ptsT = findThreePoints(table.rows, valT, 0);
-        if (ptsT[0] === -1) { setResult({ error: `T = ${valT}°C fora da tabela superaquecida para P=${key} bar.` }); return; }
+        
+        if (ptsT[0] === -1) { 
+          setResult({ error: `[LIMITE DO BANCO DE DADOS] O estado foi identificado como VAPOR SUPERAQUECIDO. Porém, a tabela disponível mais próxima (P = ${key} bar) abrange temperaturas a partir de ${table.rows[0][0]} °C. O valor T = ${valT} °C não está tabulado.` }); 
+          return; 
+        }
         
         memorial.push(`\n[CÁLCULO DA ENTROPIA s]`);
         memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
@@ -164,7 +168,11 @@ export default function App() {
         const { key, table } = findClosestTable(liqData, valBar / 10);
         memorial.push(`Buscando em tabela de Líquido (P_ref = ${key} MPa).`);
         const ptsT = findThreePoints(table.rows, valT, 0);
-        if (ptsT[0] === -1) { setResult({ error: `T = ${valT}°C fora da tabela de líquido para P=${key} MPa.` }); return; }
+        
+        if (ptsT[0] === -1) { 
+          setResult({ error: `[LIMITE DO BANCO DE DADOS] O estado foi identificado como LÍQUIDO COMPRIMIDO. Porém, a tabela disponível mais próxima não abrange a temperatura de ${valT} °C.` }); 
+          return; 
+        }
         
         memorial.push(`\n[CÁLCULO DA ENTROPIA s]`);
         memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
@@ -183,7 +191,7 @@ export default function App() {
         memorial.push(`Extraindo as linhas de saturação do fluido.`);
         rowData = satPKeys.map((_, i) => interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][i], satP[ptsP[1]][0], satP[ptsP[1]][i], satP[ptsP[2]][0], satP[ptsP[2]][i], valBar));
         
-        rowData[0] = rowData[0] * 100000; // Converte para Pascal
+        rowData[0] = rowData[0] * 100000; 
         let pUnits = [...satPUnits]; pUnits[0] = 'Pa';
         const modRows = satP.map(r => { let nr = [...r]; nr[0] *= 100000; return nr; });
         let modHeaders = [...satPHeaders]; modHeaders[0] = 'P (Pa)';
@@ -218,12 +226,12 @@ export default function App() {
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>PRESSÃO (Pa)</label>
             <div className={styles.searchInput}>
-              {/* === LIMITES SOLICITADOS: 0.01 ATÉ 500 PASCAL === */}
+              {/* O PLACEHOLDER AGORA FAZ SENTIDO (100.000 Pa = 1 bar) */}
               <input 
                 type="number" 
-                step="0.01" 
-                min="0.01" 
-                max="500" 
+                step="1" 
+                min="611" 
+                max="22090000" 
                 value={inputP} 
                 onChange={e => setInputP(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && handleSearch()} 
@@ -235,12 +243,11 @@ export default function App() {
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>TEMPERATURA (°C)</label>
             <div className={styles.searchInput}>
-              {/* === LIMITES SOLICITADOS: 0.01 ATÉ 300 °C === */}
               <input 
                 type="number" 
-                step="0.01" 
+                step="0.1" 
                 min="0.01" 
-                max="300" 
+                max="374.14" 
                 value={inputT} 
                 onChange={e => setInputT(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && handleSearch()} 
