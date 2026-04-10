@@ -18,7 +18,7 @@ function interpQuad(x0, y0, x1, y1, x2, y2, x) {
   return y0 * L0 + y1 * L1 + y2 * L2;
 }
 
-// GERADOR DO MEMORIAL MATEMÁTICO
+// GERADOR DO MEMORIAL MATEMÁTICO (Lagrange)
 function generateCalcSteps(x0, y0, x1, y1, x2, y2, x, yName="y") {
   if (x0 === x1 || x1 === x2 || x0 === x2) return ["Erro: Pontos inválidos (Divisão por zero)."];
   const L0 = ((x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2));
@@ -65,8 +65,8 @@ export default function App() {
 
   const handleSearch = useCallback(() => {
     setResult(null); setAnalysis(null); setHighlightVal(null); setTableInfo(null);
-    const valP = parseFloat(inputP); // USUÁRIO DIGITA EM BAR (Ex: 0.01 até 300)
-    const valT = parseFloat(inputT); // USUÁRIO DIGITA EM °C
+    const valP = parseFloat(inputP); // O USUÁRIO DIGITA EM BAR
+    const valT = parseFloat(inputT); // O USUÁRIO DIGITA EM °C
     const hasP = !isNaN(valP);
     const hasT = !isNaN(valT);
 
@@ -76,13 +76,14 @@ export default function App() {
     let keys = []; let units = []; let currentT = 0; let s_val = null;
 
     if (hasT && !hasP) {
+      // APENAS TEMPERATURA
       const pts = findThreePoints(satT, valT, 0);
       if (pts[0] === -1) { setResult({ error: "Temperatura fora da tabela (0.01 a 374.14 °C)." }); return; }
       
       const steps = generateCalcSteps(satT[pts[0]][0], satT[pts[0]][1], satT[pts[1]][0], satT[pts[1]][1], satT[pts[2]][0], satT[pts[2]][1], valT, "Psat (bar)");
       rowData = satTKeys.map((_, i) => interpQuad(satT[pts[0]][0], satT[pts[0]][i], satT[pts[1]][0], satT[pts[1]][i], satT[pts[2]][0], satT[pts[2]][i], valT));
       
-      // CONVERSÃO DE SAÍDA: Bar -> Pascal
+      // Converte o resultado de bar para Pa
       rowData[1] = rowData[1] * 100000;
       let tUnits = [...satTUnits]; tUnits[1] = 'Pa';
       
@@ -96,19 +97,19 @@ export default function App() {
       setAnalysis({ 
         estado: "MISTURA SATURADA (Foco em Temperatura)", color: "var(--accent)", T: currentT, s_val, 
         h_str: `hf: ${fmt(rowData[4])} | hg: ${fmt(rowData[5])}`, s_str: `sf: ${fmt(rowData[6])} | sg: ${fmt(rowData[7])}`,
-        memorial: [`[ENTRADA] Temperatura T = ${valT} °C`, ...steps, `[CONVERSÃO FINAL PARA O PROFESSOR] Psat (Pascal) = Psat(bar) × 100000 = ${fmt(rowData[1])} Pa`] 
+        memorial: [`[ENTRADA] Temperatura T = ${valT} °C`, ...steps, `\n[CONVERSÃO FINAL PARA O PROFESSOR] Psat (Pascal) = Psat(bar) × 100000 = ${fmt(rowData[1])} Pa`] 
       });
       setResult({ title: `Resultados para T = ${valT} °C`, interped: satT[pts[0]][0] !== valT, keys: satTKeys, units: tUnits, values: rowData, rawVal: valT });
     
     } else if (hasP && !hasT) {
-      // BUSCA DIRETA PELA PRESSÃO (valP já está em bar pelo input do usuário)
+      // APENAS PRESSÃO
       const pts = findThreePoints(satP, valP, 0);
       if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela de saturação (0.00611 bar a 220.9 bar)." }); return; }
       
       const steps = generateCalcSteps(satP[pts[0]][0], satP[pts[0]][1], satP[pts[1]][0], satP[pts[1]][1], satP[pts[2]][0], satP[pts[2]][1], valP, "Tsat (°C)");
       rowData = satPKeys.map((_, i) => interpQuad(satP[pts[0]][0], satP[pts[0]][i], satP[pts[1]][0], satP[pts[1]][i], satP[pts[2]][0], satP[pts[2]][i], valP));
       
-      // CONVERSÃO DE SAÍDA: Bar -> Pascal
+      // Converte a pressão de volta para Pa
       rowData[0] = rowData[0] * 100000; 
       let pUnits = [...satPUnits]; pUnits[0] = 'Pa';
 
@@ -117,19 +118,19 @@ export default function App() {
 
       keys = satPKeys; units = pUnits; currentT = rowData[1]; s_val = [rowData[6], rowData[7]];
       setTableInfo({ headers: modHeaders, rows: modRows, keyIdx: 0 });
-      setHighlightVal(valP * 100000); // Highlight procura em Pascal agora
+      setHighlightVal(valP * 100000); 
       
       setAnalysis({ 
         estado: "MISTURA SATURADA (Foco em Pressão)", color: "var(--accent)", T: currentT, s_val, 
         h_str: `hf: ${fmt(rowData[4])} | hg: ${fmt(rowData[5])}`, s_str: `sf: ${fmt(rowData[6])} | sg: ${fmt(rowData[7])}`,
-        memorial: [`[ENTRADA] Pressão P = ${valP} bar`, ...steps, `[CONVERSÃO FINAL PARA O PROFESSOR] P_exibição = ${valP} × 100000 = ${fmt(rowData[0])} Pa`] 
+        memorial: [`[ENTRADA] Pressão P = ${valP} bar`, ...steps, `\n[CONVERSÃO FINAL PARA O PROFESSOR] P_exibição = ${valP} × 100000 = ${fmt(rowData[0])} Pa`] 
       });
       setResult({ title: `Resultados para P = ${valP * 100000} Pa`, interped: satP[pts[0]][0] !== valP, keys: satPKeys, units: pUnits, values: rowData, rawVal: rowData[1] });
     
     } else if (hasP && hasT) {
-      // valP está em bar
+      // PRESSÃO E TEMPERATURA
       const ptsP = findThreePoints(satP, valP, 0);
-      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites termodinâmicos (0.00611 a 220.9 bar)." }); return; }
+      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites termodinâmicos de saturação (0.00611 a 220.9 bar)." }); return; }
       
       const Tsat = interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valP);
       const stepsTsat = generateCalcSteps(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valP, "Tsat");
@@ -219,15 +220,34 @@ export default function App() {
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>PRESSÃO (bar)</label>
             <div className={styles.searchInput}>
-              {/* O INPUT AGORA TEM STEP E MIN PARA ACEITAR NÚMEROS QUEBRADOS COMO 0.01 */}
-              <input type="number" step="0.01" min="0.001" value={inputP} onChange={e => setInputP(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 5.0" />
+              {/* LIMITES DE PRESSÃO: 0.01 até 500 */}
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0.01" 
+                max="500" 
+                value={inputP} 
+                onChange={e => setInputP(e.target.value)} 
+                onKeyDown={e => e.key === 'Enter' && handleSearch()} 
+                placeholder="Ex: 5.0" 
+              />
             </div>
           </div>
           
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>TEMPERATURA (°C)</label>
             <div className={styles.searchInput}>
-              <input type="number" step="0.1" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 300" />
+              {/* LIMITES DE TEMPERATURA: 0.01 até 300 */}
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0.01" 
+                max="300" 
+                value={inputT} 
+                onChange={e => setInputT(e.target.value)} 
+                onKeyDown={e => e.key === 'Enter' && handleSearch()} 
+                placeholder="Ex: 300" 
+              />
               <button onClick={handleSearch} style={{marginLeft: '10px'}}>Buscar</button>
             </div>
           </div>
