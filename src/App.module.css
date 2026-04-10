@@ -15,7 +15,7 @@
 .searchInput { display: flex; gap: 10px; align-items: center; }
 
 .memorialContainer { background: var(--bg2); border: 1px solid var(--border2); border-left-width: 4px; border-left-style: solid; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; animation: fadeIn .3s ease; }
-.statusHighlight { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.statusHighlight { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
 .statusItem { background: var(--bg3); border: 1px solid var(--border); padding: 14px 18px; border-radius: 6px; flex: 1; min-width: 150px; }
 .statusItem strong { color: var(--accent); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
 .statusItem span { font-family: var(--font-mono); font-size: 15px; color: var(--text); font-weight: 700; }
