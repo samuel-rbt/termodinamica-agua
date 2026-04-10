@@ -227,7 +227,7 @@ export default function App() {
                 value={inputP} 
                 onChange={e => setInputP(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && handleSearch()} 
-                placeholder="Ex: 100" 
+                placeholder="Ex: 611" 
               />
             </div>
           </div>
