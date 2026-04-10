@@ -19,6 +19,7 @@ export default function RankineChart({ analysis, currentResult }) {
   }
   
   const T_low = 40; 
+
   const getS = (T) => {
     const row = satT.find(r => r[0] >= T) || satT[satT.length-1];
     return { sf: row[6], sg: row[7] };

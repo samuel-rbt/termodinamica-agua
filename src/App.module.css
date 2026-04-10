@@ -9,22 +9,19 @@
 
 .main { max-width: 1200px; margin: 0 auto; padding: 2rem; flex: 1; width: 100%; }
 
-/* BARRA DE BUSCA "ALL IN ONE" */
 .searchBar { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 2rem; padding: 1.5rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 .searchGroup { display: flex; flex-direction: column; gap: 8px; }
 .searchLabel { font-size: 11px; font-family: var(--font-mono); color: var(--text3); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
 .searchInput { display: flex; gap: 10px; align-items: center; }
 
-/* MEMORIAL E DESTAQUES (Entalpia/Entropia) */
 .memorialContainer { background: var(--bg2); border: 1px solid var(--border2); border-left-width: 4px; border-left-style: solid; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; animation: fadeIn .3s ease; }
-.statusHighlight { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
-.statusItem { background: var(--bg3); border: 1px solid var(--border); padding: 14px 18px; border-radius: 6px; flex: 1; min-width: 200px; }
+.statusHighlight { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.statusItem { background: var(--bg3); border: 1px solid var(--border); padding: 14px 18px; border-radius: 6px; flex: 1; min-width: 150px; }
 .statusItem strong { color: var(--accent); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-.statusItem span { font-family: var(--font-mono); font-size: 16px; color: var(--text); font-weight: 700; }
+.statusItem span { font-family: var(--font-mono); font-size: 15px; color: var(--text); font-weight: 700; }
 .memorialText { font-family: var(--font-mono); font-size: 12px; color: var(--text2); margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border); }
 .memorialLine { margin: 6px 0; padding-left: 8px; border-left: 2px solid var(--border2); line-height: 1.5; white-space: pre-wrap; }
 
-/* RESULTADOS E TABELA */
 .resultCard { background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; animation: fadeIn .3s ease; }
 .resultError { border-color: rgba(239,68,68,0.4); background: rgba(239,83,80,0.05); }
 .errorMsg { color: var(--red); font-size: 13px; font-family: var(--font-mono); margin: 0; }
