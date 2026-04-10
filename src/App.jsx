@@ -18,7 +18,7 @@ function interpQuad(x0, y0, x1, y1, x2, y2, x) {
   return y0 * L0 + y1 * L1 + y2 * L2;
 }
 
-// GERADOR DO MEMORIAL MATEMÁTICO
+// GERADOR DO MEMORIAL MATEMÁTICO (Lagrange)
 function generateCalcSteps(x0, y0, x1, y1, x2, y2, x, yName="y") {
   if (x0 === x1 || x1 === x2 || x0 === x2) return ["Erro: Pontos inválidos (Divisão por zero)."];
   const L0 = ((x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2));
@@ -28,7 +28,7 @@ function generateCalcSteps(x0, y0, x1, y1, x2, y2, x, yName="y") {
 
   return [
     `[INTERPOLAÇÃO DE LAGRANGE PARA ENCONTRAR ${yName}]`,
-    `➤ Pontos da Tabela (x, y):\n   P₀ = (${fmt(x0)}, ${fmt(y0)})\n   P₁ = (${fmt(x1)}, ${fmt(y1)})\n   P₂ = (${fmt(x2)}, ${fmt(y2)})`,
+    `➤ Pontos da Tabela Base (x, y):\n   P₀ = (${fmt(x0)}, ${fmt(y0)})\n   P₁ = (${fmt(x1)}, ${fmt(y1)})\n   P₂ = (${fmt(x2)}, ${fmt(y2)})`,
     `➤ Coeficientes de Ponderação (L):\n   L₀ = (${fmt(x)} - ${fmt(x1)})(${fmt(x)} - ${fmt(x2)}) / (${fmt(x0)} - ${fmt(x1)})(${fmt(x0)} - ${fmt(x2)}) = ${fmt(L0)}\n   L₁ = (${fmt(x)} - ${fmt(x0)})(${fmt(x)} - ${fmt(x2)}) / (${fmt(x1)} - ${fmt(x0)})(${fmt(x1)} - ${fmt(x2)}) = ${fmt(L1)}\n   L₂ = (${fmt(x)} - ${fmt(x0)})(${fmt(x)} - ${fmt(x1)}) / (${fmt(x2)} - ${fmt(x0)})(${fmt(x2)} - ${fmt(x1)}) = ${fmt(L2)}`,
     `➤ Resolução Final:\n   ${yName} = (y₀ × L₀) + (y₁ × L₁) + (y₂ × L₂)\n   ${yName} = (${fmt(y0)} × ${fmt(L0)}) + (${fmt(y1)} × ${fmt(L1)}) + (${fmt(y2)} × ${fmt(L2)})`,
     `➤ Resultado Calculado:\n   ${yName} = ${fmt(y)}`
@@ -65,109 +65,145 @@ export default function App() {
 
   const handleSearch = useCallback(() => {
     setResult(null); setAnalysis(null); setHighlightVal(null); setTableInfo(null);
-    const P = parseFloat(inputP);
-    const T = parseFloat(inputT);
-    const hasP = !isNaN(P);
-    const hasT = !isNaN(T);
+    const valP = parseFloat(inputP); // O USUÁRIO DIGITA EM PASCAL
+    const valT = parseFloat(inputT); // O USUÁRIO DIGITA EM °C
+    const hasP = !isNaN(valP);
+    const hasT = !isNaN(valT);
 
-    if (!hasP && !hasT) { alert("Insira Pressão e/ou Temperatura."); return; }
+    if (!hasP && !hasT) { alert("Insira Pressão (em Pascal) e/ou Temperatura."); return; }
 
     let estado = ""; let memorial = []; let rowData = []; 
     let keys = []; let units = []; let currentT = 0; let s_val = null;
 
     if (hasT && !hasP) {
-      const pts = findThreePoints(satT, T, 0);
+      // APENAS TEMPERATURA
+      const pts = findThreePoints(satT, valT, 0);
       if (pts[0] === -1) { setResult({ error: "Temperatura fora da tabela (0.01 a 374.14 °C)." }); return; }
       
-      const steps = generateCalcSteps(satT[pts[0]][0], satT[pts[0]][1], satT[pts[1]][0], satT[pts[1]][1], satT[pts[2]][0], satT[pts[2]][1], T, "Psat (bar)");
-      rowData = satTKeys.map((_, i) => interpQuad(satT[pts[0]][0], satT[pts[0]][i], satT[pts[1]][0], satT[pts[1]][i], satT[pts[2]][0], satT[pts[2]][i], T));
+      const steps = generateCalcSteps(satT[pts[0]][0], satT[pts[0]][1], satT[pts[1]][0], satT[pts[1]][1], satT[pts[2]][0], satT[pts[2]][1], valT, "Psat (bar)");
+      rowData = satTKeys.map((_, i) => interpQuad(satT[pts[0]][0], satT[pts[0]][i], satT[pts[1]][0], satT[pts[1]][i], satT[pts[2]][0], satT[pts[2]][i], valT));
       
-      keys = satTKeys; units = satTUnits; currentT = T; s_val = [rowData[6], rowData[7]];
-      setTableInfo({ headers: satTHeaders, rows: satT, keyIdx: 0 });
-      setHighlightVal(T);
+      // Converte o resultado de bar para Pa
+      rowData[1] = rowData[1] * 100000;
+      let tUnits = [...satTUnits]; tUnits[1] = 'Pa';
+      
+      const modRows = satT.map(r => { let nr = [...r]; nr[1] *= 100000; return nr; });
+      let modHeaders = [...satTHeaders]; modHeaders[1] = 'P (Pa)';
+
+      keys = satTKeys; units = tUnits; currentT = valT; s_val = [rowData[6], rowData[7]];
+      setTableInfo({ headers: modHeaders, rows: modRows, keyIdx: 0 });
+      setHighlightVal(valT);
+      
       setAnalysis({ 
-        estado: "SATURADA POR TEMPERATURA", color: "var(--accent)", T: currentT, s_val, 
-        memorial: [`[ENTRADA] T = ${T} °C (Assumindo saturação)`, ...steps] 
+        estado: "MISTURA SATURADA (Foco em Temperatura)", color: "var(--accent)", T: currentT, s_val, 
+        h_str: `hf: ${fmt(rowData[4])} | hg: ${fmt(rowData[5])}`, s_str: `sf: ${fmt(rowData[6])} | sg: ${fmt(rowData[7])}`,
+        memorial: [`[ENTRADA] Temperatura T = ${valT} °C`, ...steps, `[CONVERSÃO FINAL] Psat (Pascal) = Psat(bar) × 100000 = ${fmt(rowData[1])} Pa`] 
       });
-    }
-    else if (hasP && !hasT) {
-      const pts = findThreePoints(satP, P, 0);
-      if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela (0.00611 a 220.9 bar)." }); return; }
+      setResult({ title: `Resultados para T = ${valT} °C`, interped: satT[pts[0]][0] !== valT, keys: satTKeys, units: tUnits, values: rowData, rawVal: valT });
+    
+    } else if (hasP && !hasT) {
+      // APENAS PRESSÃO
+      const valBar = valP / 100000; // Converte Pa -> Bar para busca interna
+      const pts = findThreePoints(satP, valBar, 0);
+      if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela (611 Pa a 22.090.000 Pa)." }); return; }
       
-      const steps = generateCalcSteps(satP[pts[0]][0], satP[pts[0]][1], satP[pts[1]][0], satP[pts[1]][1], satP[pts[2]][0], satP[pts[2]][1], P, "Tsat (°C)");
-      rowData = satPKeys.map((_, i) => interpQuad(satP[pts[0]][0], satP[pts[0]][i], satP[pts[1]][0], satP[pts[1]][i], satP[pts[2]][0], satP[pts[2]][i], P));
+      const steps = generateCalcSteps(satP[pts[0]][0], satP[pts[0]][1], satP[pts[1]][0], satP[pts[1]][1], satP[pts[2]][0], satP[pts[2]][1], valBar, "Tsat (°C)");
+      rowData = satPKeys.map((_, i) => interpQuad(satP[pts[0]][0], satP[pts[0]][i], satP[pts[1]][0], satP[pts[1]][i], satP[pts[2]][0], satP[pts[2]][i], valBar));
       
-      keys = satPKeys; units = satPUnits; currentT = rowData[1]; s_val = [rowData[6], rowData[7]];
-      setTableInfo({ headers: satPHeaders, rows: satP, keyIdx: 0 });
-      setHighlightVal(P);
+      // Converte a pressão de volta para Pa
+      rowData[0] = rowData[0] * 100000;
+      let pUnits = [...satPUnits]; pUnits[0] = 'Pa';
+
+      const modRows = satP.map(r => { let nr = [...r]; nr[0] *= 100000; return nr; });
+      let modHeaders = [...satPHeaders]; modHeaders[0] = 'P (Pa)';
+
+      keys = satPKeys; units = pUnits; currentT = rowData[1]; s_val = [rowData[6], rowData[7]];
+      setTableInfo({ headers: modHeaders, rows: modRows, keyIdx: 0 });
+      setHighlightVal(valP);
+      
       setAnalysis({ 
-        estado: "SATURADA POR PRESSÃO", color: "var(--accent)", T: currentT, s_val, 
-        memorial: [`[ENTRADA] P = ${P} bar (Assumindo saturação)`, ...steps] 
+        estado: "MISTURA SATURADA (Foco em Pressão)", color: "var(--accent)", T: currentT, s_val, 
+        h_str: `hf: ${fmt(rowData[4])} | hg: ${fmt(rowData[5])}`, s_str: `sf: ${fmt(rowData[6])} | sg: ${fmt(rowData[7])}`,
+        memorial: [`[ENTRADA] Pressão P = ${valP} Pa`, `[CONVERSÃO] P = ${valP} / 100000 = ${fmt(valBar)} bar`, ...steps] 
       });
-    }
-    else if (hasP && hasT) {
-      const ptsP = findThreePoints(satP, P, 0);
-      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites termodinâmicos." }); return; }
+      setResult({ title: `Resultados para P = ${valP} Pa`, interped: satP[pts[0]][0] !== valBar, keys: satPKeys, units: pUnits, values: rowData, rawVal: rowData[1] });
+    
+    } else if (hasP && hasT) {
+      // PRESSÃO E TEMPERATURA
+      const valBar = valP / 100000;
+      const ptsP = findThreePoints(satP, valBar, 0);
+      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites termodinâmicos (611 Pa a 22.090.000 Pa)." }); return; }
       
-      const Tsat = interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], P);
-      const stepsTsat = generateCalcSteps(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], P, "Tsat");
+      const Tsat = interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valBar);
+      const stepsTsat = generateCalcSteps(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valBar, "Tsat");
       
-      memorial.push(`[ENTRADAS] P = ${P} bar | T = ${T} °C`);
+      memorial.push(`[ENTRADAS] P = ${valP} Pa (${fmt(valBar)} bar) | T = ${valT} °C`);
       memorial.push(`Determinando a Fronteira de Fase (Tsat):`);
       memorial.push(...stepsTsat);
 
-      if (T > Tsat + 0.1) {
+      if (valT > Tsat + 0.1) {
         estado = "VAPOR SUPERAQUECIDO";
-        memorial.push(`\n[ANÁLISE DE FASE] T_sistema > Tsat ➔ (${T} °C > ${fmt(Tsat)} °C)`);
+        memorial.push(`\n[ANÁLISE DE FASE] T_sistema > Tsat ➔ (${valT} °C > ${fmt(Tsat)} °C)`);
         
-        const { key, table } = findClosestTable(supData, P);
-        memorial.push(`Buscando propriedades em tabela de Vapor (P_ref = ${key} bar).`);
-        const ptsT = findThreePoints(table.rows, T, 0);
-        if (ptsT[0] === -1) { setResult({ error: `T = ${T}°C fora da tabela superaquecida.` }); return; }
+        const { key, table } = findClosestTable(supData, valBar);
+        memorial.push(`Buscando em tabela de Vapor (P_ref = ${key} bar).`);
+        const ptsT = findThreePoints(table.rows, valT, 0);
+        if (ptsT[0] === -1) { setResult({ error: `T = ${valT}°C fora da tabela superaquecida.` }); return; }
         
-        memorial.push(`\n[CÁLCULO DAS PROPRIEDADES FINAIS (Ex: Entropia s)]`);
-        memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], T, "s"));
+        memorial.push(`\n[CÁLCULO DA ENTROPIA s]`);
+        memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
 
-        rowData = [0,1,2,3].map(i => interpQuad(table.rows[ptsT[0]][0], table.rows[ptsT[0]][i], table.rows[ptsT[1]][0], table.rows[ptsT[1]][i], table.rows[ptsT[2]][0], table.rows[ptsT[2]][i], T));
+        rowData = [0,1,2,3].map(i => interpQuad(table.rows[ptsT[0]][0], table.rows[ptsT[0]][i], table.rows[ptsT[1]][0], table.rows[ptsT[1]][i], table.rows[ptsT[2]][0], table.rows[ptsT[2]][i], valT));
         keys = ['T','v','h','s']; units = ['°C','m³/kg','kJ/kg','kJ/kg·K'];
+        
         setTableInfo({ headers: table.headers, rows: table.rows, keyIdx: 0 });
-        setHighlightVal(T);
-        setAnalysis({ estado, color: "var(--amber)", memorial, T, s_val: rowData[3] });
-      }
-      else if (T < Tsat - 0.1) {
+        setHighlightVal(valT);
+        setAnalysis({ estado, color: "var(--amber)", memorial, T: valT, s_val: rowData[3], h_str: fmt(rowData[2]), s_str: fmt(rowData[3]) });
+        setResult({ title: `Vapor Superaquecido (P = ${valP} Pa, T = ${valT} °C)`, interped: table.rows[ptsT[0]][0] !== valT, keys: ['T','v','h','s'], units: units, values: rowData, rawVal: valT });
+      
+      } else if (valT < Tsat - 0.1) {
         estado = "LÍQUIDO COMPRIMIDO";
-        memorial.push(`\n[ANÁLISE DE FASE] T_sistema < Tsat ➔ (${T} °C < ${fmt(Tsat)} °C)`);
+        memorial.push(`\n[ANÁLISE DE FASE] T_sistema < Tsat ➔ (${valT} °C < ${fmt(Tsat)} °C)`);
         
-        const { key, table } = findClosestTable(liqData, P / 10);
-        memorial.push(`Buscando propriedades em tabela de Líquido (P_ref = ${key} MPa).`);
-        const ptsT = findThreePoints(table.rows, T, 0);
-        if (ptsT[0] === -1) { setResult({ error: `T = ${T}°C fora da tabela de líquido.` }); return; }
+        const { key, table } = findClosestTable(liqData, valBar / 10);
+        memorial.push(`Buscando em tabela de Líquido (P_ref = ${key} MPa).`);
+        const ptsT = findThreePoints(table.rows, valT, 0);
+        if (ptsT[0] === -1) { setResult({ error: `T = ${valT}°C fora da tabela de líquido.` }); return; }
         
-        memorial.push(`\n[CÁLCULO DAS PROPRIEDADES FINAIS (Ex: Entropia s)]`);
-        memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], T, "s"));
+        memorial.push(`\n[CÁLCULO DA ENTROPIA s]`);
+        memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
 
-        rowData = [0,1,2,3].map(i => interpQuad(table.rows[ptsT[0]][0], table.rows[ptsT[0]][i], table.rows[ptsT[1]][0], table.rows[ptsT[1]][i], table.rows[ptsT[2]][0], table.rows[ptsT[2]][i], T));
+        rowData = [0,1,2,3].map(i => interpQuad(table.rows[ptsT[0]][0], table.rows[ptsT[0]][i], table.rows[ptsT[1]][0], table.rows[ptsT[1]][i], table.rows[ptsT[2]][0], table.rows[ptsT[2]][i], valT));
         keys = ['T','v','h','s']; units = ['°C','m³/kg','kJ/kg','kJ/kg·K'];
+        
         setTableInfo({ headers: table.headers, rows: table.rows, keyIdx: 0 });
-        setHighlightVal(T);
-        setAnalysis({ estado, color: "var(--accent)", memorial, T, s_val: rowData[3] });
-      }
-      else {
+        setHighlightVal(valT);
+        setAnalysis({ estado, color: "#3b82f6", memorial, T: valT, s_val: rowData[3], h_str: fmt(rowData[2]), s_str: fmt(rowData[3]) });
+        setResult({ title: `Líquido Comprimido (P = ${valP} Pa, T = ${valT} °C)`, interped: table.rows[ptsT[0]][0] !== valT, keys: ['T','v','h','s'], units: units, values: rowData, rawVal: valT });
+      
+      } else {
         estado = "MISTURA SATURADA";
-        memorial.push(`\n[ANÁLISE DE FASE] T_sistema ≅ Tsat ➔ (${T} °C ≅ ${fmt(Tsat)} °C)`);
+        memorial.push(`\n[ANÁLISE DE FASE] T_sistema ≅ Tsat ➔ (${valT} °C ≅ ${fmt(Tsat)} °C)`);
         memorial.push(`Extraindo as linhas de saturação do fluido.`);
-        rowData = satPKeys.map((_, i) => interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][i], satP[ptsP[1]][0], satP[ptsP[1]][i], satP[ptsP[2]][0], satP[ptsP[2]][i], P));
-        keys = satPKeys; units = satPUnits;
-        setTableInfo({ headers: satPHeaders, rows: satP, keyIdx: 0 });
-        setHighlightVal(P);
-        setAnalysis({ estado, color: "var(--accent)", memorial, T: rowData[1], s_val: [rowData[6], rowData[7]] });
+        rowData = satPKeys.map((_, i) => interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][i], satP[ptsP[1]][0], satP[ptsP[1]][i], satP[ptsP[2]][0], satP[ptsP[2]][i], valBar));
+        
+        rowData[0] = rowData[0] * 100000; // Voltar para Pascal
+        let pUnits = [...satPUnits]; pUnits[0] = 'Pa';
+        const modRows = satP.map(r => { let nr = [...r]; nr[0] *= 100000; return nr; });
+        let modHeaders = [...satPHeaders]; modHeaders[0] = 'P (Pa)';
+
+        keys = satPKeys; units = pUnits;
+        setTableInfo({ headers: modHeaders, rows: modRows, keyIdx: 0 });
+        setHighlightVal(valP);
+        setAnalysis({ estado, color: "var(--accent)", memorial, T: rowData[1], s_val: [rowData[6], rowData[7]], h_str: `hf: ${fmt(rowData[4])} | hg: ${fmt(rowData[5])}`, s_str: `sf: ${fmt(rowData[6])} | sg: ${fmt(rowData[7])}` });
+        setResult({ title: `Mistura Saturada (P = ${valP} Pa)`, interped: satP[ptsP[0]][0] !== valBar, keys: satPKeys, units: pUnits, values: rowData, rawVal: rowData[1] });
       }
     }
-    setResult({ keys, units, values: rowData, title: `Resultado Extraído` });
   }, [inputP, inputT]);
 
   return (
     <div className={styles.app}>
+      
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.logo}>
@@ -182,19 +218,20 @@ export default function App() {
 
       <main className={styles.main}>
         
+        {/* BARRA DE BUSCA EM PASCAL (All-in-One) */}
         <div className={styles.searchBar}>
           <div className={styles.searchGroup}>
-            <label className={styles.searchLabel}>PRESSÃO (bar)</label>
+            <label className={styles.searchLabel}>PRESSÃO (Pa)</label>
             <div className={styles.searchInput}>
-              <input type="number" value={inputP} onChange={e => setInputP(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="ex: 5.0" />
+              <input type="number" value={inputP} onChange={e => setInputP(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 500000" />
             </div>
           </div>
           
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>TEMPERATURA (°C)</label>
             <div className={styles.searchInput}>
-              <input type="number" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="ex: 300" />
-              <button onClick={handleSearch} style={{marginLeft: '10px'}}>Buscar</button>
+              <input type="number" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 300" />
+              <button onClick={handleSearch}>Buscar</button>
             </div>
           </div>
         </div>
@@ -205,30 +242,39 @@ export default function App() {
           </div>
         )}
 
-        {/* MEMORIAL DE CÁLCULO COM A MATEMÁTICA */}
+        {/* STATUS COM ENTALPIA E ENTROPIA EM DESTAQUE */}
         {analysis && (
-          <div className={styles.resultCard} style={{ borderLeft: `4px solid ${analysis.color}` }}>
-            <div className={styles.resultHeader}>
-              <span className={styles.resultTitle} style={{ color: analysis.color, fontSize: '15px' }}>
-                STATUS: {analysis.estado}
-              </span>
-              <span className={styles.interpBadge} style={{background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent)', borderColor: 'var(--accent)'}}>
-                interpolação quadrática
-              </span>
+          <div className={styles.memorialContainer} style={{ borderLeftColor: analysis.color }}>
+            <h3 style={{ color: analysis.color, margin: '0 0 10px 0', fontSize: '15px', fontFamily: 'var(--font-mono)' }}>
+              STATUS: {analysis.estado}
+            </h3>
+            
+            <div className={styles.statusHighlight}>
+              <div className={styles.statusItem}>
+                <strong>Entalpia (h)</strong>
+                <span>{analysis.h_str} <small style={{color:'var(--text3)'}}>kJ/kg</small></span>
+              </div>
+              <div className={styles.statusItem}>
+                <strong>Entropia (s)</strong>
+                <span>{analysis.s_str} <small style={{color:'var(--text3)'}}>kJ/kg·K</small></span>
+              </div>
             </div>
+
             <div className={styles.memorialText}>
               <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '8px'}}>MEMORIAL DE CÁLCULO E FÓRMULAS:</strong>
               {analysis.memorial.map((line, i) => (
-                <p key={i} className={styles.memorialLine}>{line}</p>
+                <div key={i} className={styles.memorialLine}>{line}</div>
               ))}
             </div>
           </div>
         )}
 
+        {/* PROPRIEDADES DE SAÍDA */}
         {result && !result.error && (
           <div className={styles.resultCard}>
             <div className={styles.resultHeader}>
-              <span className={styles.resultTitle}>PROPRIEDADES EXTRAÍDAS</span>
+              <span className={styles.resultTitle}>{result.title}</span>
+              {result.interped && <span className={styles.interpBadge}>interpolação quadrática</span>}
             </div>
             <div className={styles.resultGrid}>
               {result.keys.map((k, i) => (
@@ -242,12 +288,14 @@ export default function App() {
           </div>
         )}
 
+        {/* GRÁFICO */}
         {analysis && (
-          <div className={styles.resultCard} style={{ padding: '0', overflow: 'hidden' }}>
-            <RankineChart analysis={analysis} />
+          <div className={styles.resultCard} style={{ padding: '1rem', overflow: 'hidden' }}>
+            <RankineChart analysis={analysis} currentResult={result} />
           </div>
         )}
 
+        {/* TABELA COM DESTAQUE DA LINHA */}
         {tableInfo && tableInfo.headers && (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
@@ -256,7 +304,7 @@ export default function App() {
               </thead>
               <tbody>
                 {tableInfo.rows.map((row, ri) => (
-                  <tr key={ri} className={highlightVal !== null && row[tableInfo.keyIdx] === highlightVal ? styles.highlighted : ''}>
+                  <tr key={ri} className={highlightVal !== null && Math.abs(row[tableInfo.keyIdx] - highlightVal) < 0.0001 ? styles.highlighted : ''}>
                     {row.map((v, ci) => <td key={ci}>{fmt(v)}</td>)}
                   </tr>
                 ))}
@@ -264,9 +312,10 @@ export default function App() {
             </table>
           </div>
         )}
+
       </main>
 
-      <footer className={styles.footer}>
+      <footer style={{ textAlign: 'center', padding: '24px 20px', color: 'var(--text3)', fontSize: '13px', fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--border)', marginTop: 'auto', letterSpacing: '0.05em' }}>
         Desenvolvido por: <strong style={{color: 'var(--text)'}}>Murilo Roberto Matias da Silva</strong> | Matrícula: 30313473
       </footer>
     </div>

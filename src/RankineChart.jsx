@@ -19,7 +19,6 @@ export default function RankineChart({ analysis, currentResult }) {
   }
   
   const T_low = 40; 
-
   const getS = (T) => {
     const row = satT.find(r => r[0] >= T) || satT[satT.length-1];
     return { sf: row[6], sg: row[7] };
@@ -57,8 +56,8 @@ export default function RankineChart({ analysis, currentResult }) {
       {
         label: `Ciclo Ideal (${T_high.toFixed(1)} °C)`,
         data: cycleData,
-        borderColor: 'rgba(16, 185, 129, 0.6)', // Verde Esmeralda (Murilo)
-        backgroundColor: 'rgba(16, 185, 129, 0.6)',
+        borderColor: 'rgba(16, 185, 129, 0.5)', 
+        backgroundColor: 'rgba(16, 185, 129, 0.5)',
         showLine: true,
         borderWidth: 1.5,
         pointRadius: 0,
