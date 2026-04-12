@@ -1,91 +1,107 @@
-# Tabelas Termodinâmicas e Ciclo de Rankine
+# Tabelas Termodinâmicas e Diagrama T-s (H₂O)
 
-Ferramenta de engenharia interativa desenvolvida em React. Realiza consultas às 4 tabelas termodinâmicas fundamentais da água, utilizando **interpolação quadrática (Polinômio de Lagrange)** para garantir precisão física, e plota dinamicamente o Diagrama T-s do Ciclo de Rankine.
-
----
-
-## ⚙️ Escopo de Dados
-
-- **Água saturada por temperatura:** 0.01 – 374.14 °C  
-- **Água saturada por pressão:** 0.006 – 220.9 bar  
-- **Vapor superaquecido:** 7 faixas de pressão  
-- **Líquido comprimido:** 4 faixas de pressão  
+Este projeto é uma ferramenta de engenharia interativa desenvolvida em **React** para consulta de propriedades termodinâmicas da água. Ele permite visualizar o estado do sistema em um diagrama T-s dinâmico, comparando-o com os ciclos de Rankine e Carnot.
 
 ---
 
-## 📁 Estrutura de Arquivos (O que faz o quê?)
+## 🛠️ Tecnologias e Bibliotecas
 
-- `src/data.js`:  
-  O banco de dados. Contém as matrizes (arrays) brutas com os valores extraídos das tabelas termodinâmicas oficiais (P, T, v, h, s).
+O projeto utiliza as seguintes tecnologias:
 
-- `src/App.jsx`:  
-  O motor matemático e a interface principal. Contém a lógica de busca e a função `interpQuad` responsável pela interpolação polinomial de 2º grau. Renderiza as abas e a tabela de resultados.
-
-- `src/RankineChart.jsx`:  
-  O motor gráfico. Utiliza `Chart.js` para desenhar a Cúpula de Saturação da água e plota o Ciclo Ideal de Rankine reativamente, ajustando o teto do ciclo ($T_{max}$) de acordo com a pesquisa do usuário no App.
-
-- `src/App.module.css`:  
-  Folha de estilos isolada (CSS Modules) para garantir que o design da aplicação não quebre.
-
-- `src/main.jsx`:  
-  Ponto de entrada do React no DOM (injeta o App no `index.html`).
-
-- `package.json`:  
-  Mapeamento das dependências do Node.js (Vite, React, Chart.js).
+- **React (v18)**: Biblioteca base para a interface e lógica de estado.
+- **Vite**: Ferramenta de build e servidor de desenvolvimento de alta performance.
+- **D3.js**: Utilizada para a renderização matemática e visual do Diagrama T-s, incluindo a cúpula de saturação e os ciclos térmicos.
+- **CSS Modules**: Para estilização isolada dos componentes.
 
 ---
 
-## 🚀 Como instalar em um novo PC a partir do Git
+## 🚀 Como instalar e rodar (Guia para Clonagem)
 
-Para rodar este projeto em outra máquina, certifique-se de ter o **Node.js** instalado. Ele já inclui o `npm`, necessário para gerenciar os pacotes.
+Certifique-se de ter o **Node.js** instalado em sua máquina antes de começar.
 
 ### 1. Clone o repositório
-
 ```bash
-git clone <URL_DO_SEU_REPOSITORIO>
-cd termodinamica
+git clone <URL_DO_REPOSITORIO>
+cd <NOME_DA_PASTA>
 ```
 
 ### 2. Instale as dependências
-
-Isso criará a pasta `node_modules` com o React e o Chart.js isolados no ambiente do projeto:
+Este comando instalará o React, o D3.js e as ferramentas de desenvolvimento necessárias:
 
 ```bash
 npm install
 ```
 
 ### 3. Inicie o servidor de desenvolvimento
-
 ```bash
 npm run dev
 ```
 
-### 4. Acesse no navegador
+### 4. Acesse a aplicação
+Abra o seu navegador e acesse o endereço indicado no terminal (geralmente http://localhost:5173).
 
-O terminal mostrará um link (geralmente):
+---
 
-```
-http://localhost:5173
-```
+## 📁 Estrutura do Projeto
+
+- `src/data.js`: Contém os dados brutos das tabelas de saturação, vapor superaquecido e líquido comprimido.
+- `src/App.jsx`: Lógica principal de busca, interpolação de Lagrange e cálculo de estado termodinâmico.
+- `src/RankineChart.jsx`: Componente responsável pela plotagem do gráfico T-s usando D3.js.
+- `src/App.module.css`: Estilos específicos da interface principal.
+- `src/index.css`: Estilos globais e definições de variáveis de cores/fontes.
+- `src/main.jsx`: Ponto de entrada da aplicação.
 
 ---
 
 ## 🏗️ Build para Produção
 
-Se quiser compilar o código para colocar em um servidor real:
+Para gerar uma versão otimizada para hospedagem (como no Render ou Vercel):
 
 ```bash
 npm run build
 ```
 
-##  Render
+---
 
-Site disponivel na plataforma SAS Render
+## 📌 Créditos
+
+**Desenvolvido por:** Murilo Roberto Matias da Silva  
+**Matrícula:** 30313473  
 
 ---
 
-## 📌 Observações
+## 📚 Resumo das Bibliotecas Utilizadas
 
-- Projeto focado em precisão numérica com interpolação de segunda ordem.
-- Ideal para estudos de Termodinâmica e análise de ciclos de potência.
-- Totalmente client-side (sem backend).
+1. **React**: Gerencia a interface e os inputs de busca.  
+2. **D3.js**: Faz todo o trabalho pesado de desenho vetorial (SVG) da cúpula de saturação e dos ciclos.  
+3. **Vite**: Gerencia o empacotamento do código para que ele rode rápido no navegador.  
+
+---
+
+## 🧪 Script opcional para gerar o README
+
+Você pode criar o arquivo automaticamente com Python:
+
+```python
+import os
+
+readme_content = """# Tabelas Termodinâmicas e Diagrama T-s (H₂O)
+
+Este projeto é uma ferramenta de engenharia interativa desenvolvida em **React** para consulta de propriedades termodinâmicas da água. Ele permite visualizar o estado do sistema em um diagrama T-s dinâmico, comparando-o com os ciclos de Rankine e Carnot.
+
+## 🛠️ Tecnologias
+- React
+- Vite
+- D3.js
+- CSS Modules
+
+## 🚀 Como rodar
+npm install
+npm run dev
+"""
+
+with open("README.md", "w", encoding="utf-8") as f:
+    f.write(readme_content)
+
+print("README.md criado com sucesso!")
+```
