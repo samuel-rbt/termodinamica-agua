@@ -3,7 +3,7 @@ import RankineChart from './RankineChart'
 import { satT, satP, supData, liqData } from './data'
 import styles from './App.module.css'
 
-// Função de formatação segura (evita erros se o valor não for número)
+// Função de formatação segura
 function fmt(v) {
   if (typeof v !== 'number' || isNaN(v)) return v;
   if (Math.abs(v) < 0.0001 && v !== 0) return v.toExponential(4);
@@ -20,7 +20,7 @@ function interpQuad(x0, y0, x1, y1, x2, y2, x) {
   return y0 * L0 + y1 * L1 + y2 * L2;
 }
 
-// Passo a passo do cálculo para o Memorial
+// Passo a passo do cálculo
 function generateCalcSteps(x0, y0, x1, y1, x2, y2, x, yName="y") {
   if (x0 === x1 || x1 === x2 || x0 === x2) return ["Erro: Pontos inválidos (Divisão por zero)."];
   const L0 = ((x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2));
@@ -29,25 +29,32 @@ function generateCalcSteps(x0, y0, x1, y1, x2, y2, x, yName="y") {
   const y = y0 * L0 + y1 * L1 + y2 * L2;
 
   return [
-    `[INTERPOLAÇÃO DE LAGRANGE PARA ENCONTRAR ${yName}]`,
-    `➤ Pontos da Tabela Base (x, y):\n   P₀ = (${fmt(x0)}, ${fmt(y0)})\n   P₁ = (${fmt(x1)}, ${fmt(y1)})\n   P₂ = (${fmt(x2)}, ${fmt(y2)})`,
-    `➤ Coeficientes de Ponderação (L):\n   L₀ = (${fmt(x)} - ${fmt(x1)})(${fmt(x)} - ${fmt(x2)}) / (${fmt(x0)} - ${fmt(x1)})(${fmt(x0)} - ${fmt(x2)}) = ${fmt(L0)}\n   L₁ = (${fmt(x)} - ${fmt(x0)})(${fmt(x)} - ${fmt(x2)}) / (${fmt(x1)} - ${fmt(x0)})(${fmt(x1)} - ${fmt(x2)}) = ${fmt(L1)}\n   L₂ = (${fmt(x)} - ${fmt(x0)})(${fmt(x)} - ${fmt(x1)}) / (${fmt(x2)} - ${fmt(x0)})(${fmt(x2)} - ${fmt(x1)}) = ${fmt(L2)}`,
-    `➤ Resolução Final:\n   ${yName} = (y₀ × L₀) + (y₁ × L₁) + (y₂ × L₂)\n   ${yName} = (${fmt(y0)} × ${fmt(L0)}) + (${fmt(y1)} × ${fmt(L1)}) + (${fmt(y2)} × ${fmt(L2)})`,
+    `[INTERPOLAÇÃO / EXTRAPOLAÇÃO DE LAGRANGE]`,
+    `➤ Pontos da Tabela Base:\n   P₀ = (${fmt(x0)}, ${fmt(y0)})\n   P₁ = (${fmt(x1)}, ${fmt(y1)})\n   P₂ = (${fmt(x2)}, ${fmt(y2)})`,
+    `➤ Coeficientes (L):\n   L₀ = ${fmt(L0)}\n   L₁ = ${fmt(L1)}\n   L₂ = ${fmt(L2)}`,
     `➤ Resultado Calculado:\n   ${yName} = ${fmt(y)}`
   ];
 }
 
-// Encontra os 3 pontos mais próximos para interpolar
+// Encontra os 3 pontos mais próximos (Agora com Extrapolação para limites menores)
 function findThreePoints(arr, val, idx) {
+  // Se for MENOR que o mínimo da tabela, extrapola usando os 3 primeiros pontos
+  if (val <= arr[0][idx]) return [0, 1, 2];
+  // Se for MAIOR que o máximo da tabela, extrapola usando os 3 últimos pontos
+  if (val >= arr[arr.length - 1][idx]) return [arr.length - 3, arr.length - 2, arr.length - 1];
+  
   let lo = -1;
-  for (let i = 0; i < arr.length - 1; i++) { if (arr[i][idx] <= val && arr[i + 1][idx] >= val) { lo = i; break; } }
-  if (lo === -1) return [-1, -1, -1];
+  for (let i = 0; i < arr.length - 1; i++) { 
+    if (arr[i][idx] <= val && arr[i + 1][idx] >= val) { lo = i; break; } 
+  }
+  
+  if (lo === -1) return [0, 1, 2]; // Segurança
   if (lo === 0) return [0, 1, 2];
   if (lo === arr.length - 2) return [lo - 1, lo, lo + 1];
   return Math.abs(val - arr[lo - 1][idx]) < Math.abs(val - arr[lo + 2][idx]) ? [lo - 1, lo, lo + 1] : [lo, lo + 1, lo + 2];
 }
 
-// Encontra a tabela de pressão mais próxima (para vapor sup. ou liq. comp.)
+// Encontra a tabela de pressão mais próxima
 function findClosestTable(dataObj, targetVal) {
   const keys = Object.keys(dataObj);
   let closestKey = keys[0];
@@ -81,8 +88,6 @@ export default function App() {
       if (valT > 200) { setResult({ error: "Limite: Temperatura máxima permitida de 200 °C." }); return; }
       
       const pts = findThreePoints(satT, valT, 0);
-      if (pts[0] === -1) { setResult({ error: "Temperatura fora da tabela de saturação (0.01 a 200 °C)." }); return; }
-      
       const steps = generateCalcSteps(satT[pts[0]][0], satT[pts[0]][1], satT[pts[1]][0], satT[pts[1]][1], satT[pts[2]][0], satT[pts[2]][1], valT, "Psat (bar)");
       const rowData = satT[pts[0]][0] === valT ? [...satT[pts[0]]] : satT[pts[1]][0] === valT ? [...satT[pts[1]]] :
         [0,1,2,3,4,5,6,7].map(i => interpQuad(satT[pts[0]][0], satT[pts[0]][i], satT[pts[1]][0], satT[pts[1]][i], satT[pts[2]][0], satT[pts[2]][i], valT));
@@ -111,7 +116,6 @@ export default function App() {
     } else if (hasP && !hasT) {
       const valBar = valP * 10;
       const pts = findThreePoints(satP, valBar, 0);
-      if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela de saturação (Mín. 0.0000001 MPa a Máx. 22.09 MPa)." }); return; }
       
       const steps = generateCalcSteps(satP[pts[0]][0], satP[pts[0]][1], satP[pts[1]][0], satP[pts[1]][1], satP[pts[2]][0], satP[pts[2]][1], valBar, "Tsat (°C)");
       const rowData = satP[pts[0]][0] === valBar ? [...satP[pts[0]]] : satP[pts[1]][0] === valBar ? [...satP[pts[1]]] :
@@ -139,7 +143,6 @@ export default function App() {
       if (valT > 200) { setResult({ error: "Limite: Temperatura máxima permitida de 200 °C." }); return; }
       const valBar = valP * 10;
       const ptsP = findThreePoints(satP, valBar, 0);
-      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites (0.0000001 a 22.09 MPa)." }); return; }
       
       const Tsat = interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valBar);
       let memorial = [`[ENTRADAS] P = ${valP} MPa (${fmt(valBar)} bar) | T = ${valT} °C`, `Fronteira de Fase (Tsat):`];
@@ -150,11 +153,6 @@ export default function App() {
         const { key, table } = findClosestTable(supData, valBar);
         memorial.push(`Buscando em tabela de Vapor (P_ref = ${key} bar).`);
         const ptsT = findThreePoints(table.rows, valT, 0);
-        
-        if (ptsT[0] === -1) { 
-          setResult({ error: `A tabela de vapor disponível (P = ${key} bar) não abrange T = ${valT} °C.` }); 
-          return; 
-        }
         
         memorial.push(`\n[CÁLCULO ENTROPIA s]`);
         memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
@@ -174,11 +172,6 @@ export default function App() {
         const { key, table } = findClosestTable(liqData, valP); 
         memorial.push(`Buscando em tabela de Líquido (P_ref = ${key} MPa).`);
         const ptsT = findThreePoints(table.rows, valT, 0);
-        
-        if (ptsT[0] === -1) { 
-          setResult({ error: `A tabela de líquido mais próxima não abrange T = ${valT} °C.` }); 
-          return; 
-        }
         
         memorial.push(`\n[CÁLCULO ENTROPIA s]`);
         memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
@@ -211,7 +204,6 @@ export default function App() {
     }
   }, [inputP, inputT]);
 
-  // Montagem Dinâmica da Tabela
   const renderTable = useMemo(() => {
     if (!tableConfig) return null;
     let h = []; let r = []; let kIdx = 0;
@@ -269,14 +261,14 @@ export default function App() {
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>PRESSÃO (MPa)</label>
             <div className={styles.searchInput}>
-              <input type="number" step="0.0000001" min="0.0000001" max="22.09" value={inputP} onChange={e => setInputP(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 0.1" />
+              <input type="number" step="0.0000001" value={inputP} onChange={e => setInputP(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 0.1" />
             </div>
           </div>
           
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>TEMPERATURA (°C)</label>
             <div className={styles.searchInput}>
-              <input type="number" step="0.1" min="0.01" max="200" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Até 200°C" />
+              <input type="number" step="0.1" max="200" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Até 200°C" />
               <button onClick={handleSearch} style={{marginLeft: '10px'}}>Buscar</button>
             </div>
           </div>
@@ -320,7 +312,7 @@ export default function App() {
           <div className={styles.resultCard}>
             <div className={styles.resultHeader}>
               <span className={styles.resultTitle}>{result.title}</span>
-              {result.interped && <span className={styles.interpBadge}>interpolação quadrática</span>}
+              {result.interped && <span className={styles.interpBadge}>interpolação / extrapolação</span>}
             </div>
             <div className={styles.resultGrid}>
               {result.keys.map((k, i) => (
