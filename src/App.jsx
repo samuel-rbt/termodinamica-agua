@@ -3,6 +3,7 @@ import RankineChart from './RankineChart'
 import { satT, satP, supData, liqData } from './data'
 import styles from './App.module.css'
 
+// Função de formatação segura (evita erros se o valor não for número)
 function fmt(v) {
   if (typeof v !== 'number' || isNaN(v)) return v;
   if (Math.abs(v) < 0.0001 && v !== 0) return v.toExponential(4);
@@ -10,6 +11,7 @@ function fmt(v) {
   return parseFloat(v.toPrecision(6)).toString();
 }
 
+// Interpolação Quadrática (Lagrange)
 function interpQuad(x0, y0, x1, y1, x2, y2, x) {
   if (x0 === x1 || x1 === x2 || x0 === x2) return y1;
   const L0 = ((x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2));
@@ -18,6 +20,7 @@ function interpQuad(x0, y0, x1, y1, x2, y2, x) {
   return y0 * L0 + y1 * L1 + y2 * L2;
 }
 
+// Passo a passo do cálculo para o Memorial
 function generateCalcSteps(x0, y0, x1, y1, x2, y2, x, yName="y") {
   if (x0 === x1 || x1 === x2 || x0 === x2) return ["Erro: Pontos inválidos (Divisão por zero)."];
   const L0 = ((x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2));
@@ -34,6 +37,7 @@ function generateCalcSteps(x0, y0, x1, y1, x2, y2, x, yName="y") {
   ];
 }
 
+// Encontra os 3 pontos mais próximos para interpolar
 function findThreePoints(arr, val, idx) {
   let lo = -1;
   for (let i = 0; i < arr.length - 1; i++) { if (arr[i][idx] <= val && arr[i + 1][idx] >= val) { lo = i; break; } }
@@ -43,6 +47,7 @@ function findThreePoints(arr, val, idx) {
   return Math.abs(val - arr[lo - 1][idx]) < Math.abs(val - arr[lo + 2][idx]) ? [lo - 1, lo, lo + 1] : [lo, lo + 1, lo + 2];
 }
 
+// Encontra a tabela de pressão mais próxima (para vapor sup. ou liq. comp.)
 function findClosestTable(dataObj, targetVal) {
   const keys = Object.keys(dataObj);
   let closestKey = keys[0];
@@ -65,17 +70,18 @@ export default function App() {
   const handleSearch = useCallback(() => {
     setResult(null); setAnalysis(null); setTableConfig(null);
     
-    const valP = parseFloat(inputP); // INPUT EM MPa
-    const valT = parseFloat(inputT); // INPUT EM °C
+    const valP = parseFloat(inputP); 
+    const valT = parseFloat(inputT); 
     const hasP = !isNaN(valP);
     const hasT = !isNaN(valT);
 
     if (!hasP && !hasT) { alert("Insira Pressão (MPa) e/ou Temperatura (°C)."); return; }
 
     if (hasT && !hasP) {
-      // 1. APENAS TEMPERATURA
+      if (valT > 200) { setResult({ error: "Limite: Temperatura máxima permitida de 200 °C." }); return; }
+      
       const pts = findThreePoints(satT, valT, 0);
-      if (pts[0] === -1) { setResult({ error: "Temperatura fora da tabela de saturação (0.01 a 374.14 °C)." }); return; }
+      if (pts[0] === -1) { setResult({ error: "Temperatura fora da tabela de saturação (0.01 a 200 °C)." }); return; }
       
       const steps = generateCalcSteps(satT[pts[0]][0], satT[pts[0]][1], satT[pts[1]][0], satT[pts[1]][1], satT[pts[2]][0], satT[pts[2]][1], valT, "Psat (bar)");
       const rowData = satT[pts[0]][0] === valT ? [...satT[pts[0]]] : satT[pts[1]][0] === valT ? [...satT[pts[1]]] :
@@ -84,13 +90,12 @@ export default function App() {
       const pBar = rowData[1];
       const pMPa = pBar / 10;
       
-      // Energia Interna u = h - Pv (P em kPa para dar kJ/kg -> pMPa * 1000)
       const uf = rowData[4] - (pMPa * 1000 * rowData[2]);
       const ug = rowData[5] - (pMPa * 1000 * rowData[3]);
 
       setAnalysis({ 
-        estado: "MISTURA SATURADA (Foco em Temperatura)", color: "var(--accent)", 
-        memorial: [`[ENTRADA] Temperatura T = ${valT} °C`, ...steps, `\n[ENERGIA INTERNA] Calculada via u = h - Pv`, `[CONVERSÃO FINAL] Psat = ${fmt(pBar)} bar / 10 = ${fmt(pMPa)} MPa`], 
+        estado: "MISTURA SATURADA", color: "var(--accent)", 
+        memorial: [`[ENTRADA] Temperatura T = ${valT} °C`, ...steps, `\n[ENERGIA INTERNA] Calculada via u = h - Pv`, `[CONVERSÃO] Psat = ${fmt(pBar)} bar / 10 = ${fmt(pMPa)} MPa`], 
         T: valT, s_val: [rowData[6], rowData[7]], 
         u_str: `uf: ${fmt(uf)} | ug: ${fmt(ug)}`, h_str: `hf: ${fmt(rowData[4])} | hg: ${fmt(rowData[5])}`, s_str: `sf: ${fmt(rowData[6])} | sg: ${fmt(rowData[7])}`
       });
@@ -104,22 +109,20 @@ export default function App() {
       setTableConfig({ type: 'sat-t', highlightVal: valT });
     
     } else if (hasP && !hasT) {
-      // 2. APENAS PRESSÃO
-      const valBar = valP * 10; // Converte MPa -> Bar pra buscar internamente
+      const valBar = valP * 10;
       const pts = findThreePoints(satP, valBar, 0);
-      if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela de saturação (Mín. 0.000611 MPa a Máx. 22.09 MPa)." }); return; }
+      if (pts[0] === -1) { setResult({ error: "Pressão fora da tabela de saturação (Mín. 0.0000001 MPa a Máx. 22.09 MPa)." }); return; }
       
       const steps = generateCalcSteps(satP[pts[0]][0], satP[pts[0]][1], satP[pts[1]][0], satP[pts[1]][1], satP[pts[2]][0], satP[pts[2]][1], valBar, "Tsat (°C)");
       const rowData = satP[pts[0]][0] === valBar ? [...satP[pts[0]]] : satP[pts[1]][0] === valBar ? [...satP[pts[1]]] :
         [0,1,2,3,4,5,6,7].map(i => interpQuad(satP[pts[0]][0], satP[pts[0]][i], satP[pts[1]][0], satP[pts[1]][i], satP[pts[2]][0], satP[pts[2]][i], valBar));
       
-      // Energia Interna u = h - Pv
       const uf = rowData[4] - (valP * 1000 * rowData[2]);
       const ug = rowData[5] - (valP * 1000 * rowData[3]);
 
       setAnalysis({ 
-        estado: "MISTURA SATURADA (Foco em Pressão)", color: "var(--accent)", 
-        memorial: [`[ENTRADA] Pressão P = ${valP} MPa`, `[CONVERSÃO TABELA] P = ${valP} × 10 = ${fmt(valBar)} bar`, ...steps, `\n[ENERGIA INTERNA] Calculada via u = h - Pv`], 
+        estado: "MISTURA SATURADA", color: "var(--accent)", 
+        memorial: [`[ENTRADA] Pressão P = ${valP} MPa`, `[CONVERSÃO] P = ${valP} × 10 = ${fmt(valBar)} bar`, ...steps, `\n[ENERGIA INTERNA] Calculada via u = h - Pv`], 
         T: rowData[1], s_val: [rowData[6], rowData[7]], 
         u_str: `uf: ${fmt(uf)} | ug: ${fmt(ug)}`, h_str: `hf: ${fmt(rowData[4])} | hg: ${fmt(rowData[5])}`, s_str: `sf: ${fmt(rowData[6])} | sg: ${fmt(rowData[7])}`
       });
@@ -130,20 +133,20 @@ export default function App() {
         units: ['MPa', '°C', 'm³/kg', 'm³/kg', 'kJ/kg', 'kJ/kg', 'kJ/kg', 'kJ/kg', 'kJ/kg·K', 'kJ/kg·K'], 
         values: [valP, rowData[1], rowData[2], rowData[3], uf, ug, rowData[4], rowData[5], rowData[6], rowData[7]] 
       });
-      setTableConfig({ type: 'sat-p', highlightVal: valP }); // Destaca baseado na coluna 0 (MPa)
+      setTableConfig({ type: 'sat-p', highlightVal: valP });
     
     } else if (hasP && hasT) {
-      // 3. PRESSÃO E TEMPERATURA
+      if (valT > 200) { setResult({ error: "Limite: Temperatura máxima permitida de 200 °C." }); return; }
       const valBar = valP * 10;
       const ptsP = findThreePoints(satP, valBar, 0);
-      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites termodinâmicos (Mín. 0.000611 MPa a Máx. 22.09 MPa)." }); return; }
+      if (ptsP[0] === -1) { setResult({ error: "Pressão fora dos limites (0.0000001 a 22.09 MPa)." }); return; }
       
       const Tsat = interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valBar);
-      let memorial = [`[ENTRADAS] P = ${valP} MPa (${fmt(valBar)} bar) | T = ${valT} °C`, `Determinando a Fronteira de Fase (Tsat):`];
+      let memorial = [`[ENTRADAS] P = ${valP} MPa (${fmt(valBar)} bar) | T = ${valT} °C`, `Fronteira de Fase (Tsat):`];
       memorial.push(...generateCalcSteps(satP[ptsP[0]][0], satP[ptsP[0]][1], satP[ptsP[1]][0], satP[ptsP[1]][1], satP[ptsP[2]][0], satP[ptsP[2]][1], valBar, "Tsat"));
 
       if (valT > Tsat + 0.1) {
-        memorial.push(`\n[ANÁLISE DE FASE] T_sistema > Tsat ➔ (${valT} °C > ${fmt(Tsat)} °C) ➔ VAPOR SUPERAQUECIDO`);
+        memorial.push(`\n[FASE] T_sistema > Tsat ➔ (${valT} °C > ${fmt(Tsat)} °C) ➔ VAPOR SUPERAQUECIDO`);
         const { key, table } = findClosestTable(supData, valBar);
         memorial.push(`Buscando em tabela de Vapor (P_ref = ${key} bar).`);
         const ptsT = findThreePoints(table.rows, valT, 0);
@@ -153,11 +156,11 @@ export default function App() {
           return; 
         }
         
-        memorial.push(`\n[CÁLCULO DA ENTROPIA s]`);
+        memorial.push(`\n[CÁLCULO ENTROPIA s]`);
         memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
 
         const rowData = [0,1,2,3].map(i => interpQuad(table.rows[ptsT[0]][0], table.rows[ptsT[0]][i], table.rows[ptsT[1]][0], table.rows[ptsT[1]][i], table.rows[ptsT[2]][0], table.rows[ptsT[2]][i], valT));
-        const u = rowData[2] - (valP * 1000 * rowData[1]); // u = h - Pv
+        const u = rowData[2] - (valP * 1000 * rowData[1]); 
         
         setAnalysis({ estado: "VAPOR SUPERAQUECIDO", color: "var(--amber)", memorial, T: valT, s_val: rowData[3], u_str: fmt(u), h_str: fmt(rowData[2]), s_str: fmt(rowData[3]) });
         setResult({ 
@@ -167,8 +170,8 @@ export default function App() {
         setTableConfig({ type: 'sup', key, highlightVal: valT });
       
       } else if (valT < Tsat - 0.1) {
-        memorial.push(`\n[ANÁLISE DE FASE] T_sistema < Tsat ➔ (${valT} °C < ${fmt(Tsat)} °C) ➔ LÍQUIDO COMPRIMIDO`);
-        const { key, table } = findClosestTable(liqData, valP); // Key do Liq já tá em MPa
+        memorial.push(`\n[FASE] T_sistema < Tsat ➔ (${valT} °C < ${fmt(Tsat)} °C) ➔ LÍQUIDO COMPRIMIDO`);
+        const { key, table } = findClosestTable(liqData, valP); 
         memorial.push(`Buscando em tabela de Líquido (P_ref = ${key} MPa).`);
         const ptsT = findThreePoints(table.rows, valT, 0);
         
@@ -177,11 +180,11 @@ export default function App() {
           return; 
         }
         
-        memorial.push(`\n[CÁLCULO DA ENTROPIA s]`);
+        memorial.push(`\n[CÁLCULO ENTROPIA s]`);
         memorial.push(...generateCalcSteps(table.rows[ptsT[0]][0], table.rows[ptsT[0]][3], table.rows[ptsT[1]][0], table.rows[ptsT[1]][3], table.rows[ptsT[2]][0], table.rows[ptsT[2]][3], valT, "s"));
 
         const rowData = [0,1,2,3].map(i => interpQuad(table.rows[ptsT[0]][0], table.rows[ptsT[0]][i], table.rows[ptsT[1]][0], table.rows[ptsT[1]][i], table.rows[ptsT[2]][0], table.rows[ptsT[2]][i], valT));
-        const u = rowData[2] - (parseFloat(key) * 1000 * rowData[1]); // u = h - Pv
+        const u = rowData[2] - (parseFloat(key) * 1000 * rowData[1]); 
         
         setAnalysis({ estado: "LÍQUIDO COMPRIMIDO", color: "var(--accent)", memorial, T: valT, s_val: rowData[3], u_str: fmt(u), h_str: fmt(rowData[2]), s_str: fmt(rowData[3]) });
         setResult({ 
@@ -191,9 +194,7 @@ export default function App() {
         setTableConfig({ type: 'liq', key, highlightVal: valT });
       
       } else {
-        memorial.push(`\n[ANÁLISE DE FASE] T_sistema ≅ Tsat ➔ (${valT} °C ≅ ${fmt(Tsat)} °C) ➔ MISTURA SATURADA`);
-        memorial.push(`Extraindo as linhas de saturação do fluido.`);
-        
+        memorial.push(`\n[FASE] T_sistema ≅ Tsat ➔ (${valT} °C ≅ ${fmt(Tsat)} °C) ➔ MISTURA SATURADA`);
         const rowData = [0,1,2,3,4,5,6,7].map(i => interpQuad(satP[ptsP[0]][0], satP[ptsP[0]][i], satP[ptsP[1]][0], satP[ptsP[1]][i], satP[ptsP[2]][0], satP[ptsP[2]][i], valBar));
         const uf = rowData[4] - (valP * 1000 * rowData[2]);
         const ug = rowData[5] - (valP * 1000 * rowData[3]);
@@ -210,7 +211,7 @@ export default function App() {
     }
   }, [inputP, inputT]);
 
-  // Hook isolado para montar a tabela sem causar loops
+  // Montagem Dinâmica da Tabela
   const renderTable = useMemo(() => {
     if (!tableConfig) return null;
     let h = []; let r = []; let kIdx = 0;
@@ -232,14 +233,14 @@ export default function App() {
         let ug = row[5] - (pMPa * 1000 * row[3]);
         return [pMPa, row[1], row[2], row[3], uf, ug, row[4], row[5], row[6], row[7]]; 
       });
-      kIdx = 0; // Highlight baseado na coluna P(MPa)
+      kIdx = 0;
     } else if (tableConfig.type === 'sup') {
-      const pMPa = parseFloat(tableConfig.key) / 10; // Key is in bar
+      const pMPa = parseFloat(tableConfig.key) / 10; 
       h = ['T (°C)','v (m³/kg)','u (kJ/kg)','h (kJ/kg)','s (kJ/kg·K)'];
       r = supData[tableConfig.key].rows.map(row => [row[0], row[1], row[2] - (pMPa * 1000 * row[1]), row[2], row[3]]);
       kIdx = 0;
     } else if (tableConfig.type === 'liq') {
-      const pMPa = parseFloat(tableConfig.key); // Key is in MPa
+      const pMPa = parseFloat(tableConfig.key); 
       h = ['T (°C)','v (m³/kg)','u (kJ/kg)','h (kJ/kg)','s (kJ/kg·K)'];
       r = liqData[tableConfig.key].rows.map(row => [row[0], row[1], row[2] - (pMPa * 1000 * row[1]), row[2], row[3]]);
       kIdx = 0;
@@ -268,14 +269,14 @@ export default function App() {
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>PRESSÃO (MPa)</label>
             <div className={styles.searchInput}>
-              <input type="number" step="0.001" value={inputP} onChange={e => setInputP(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 0.1" />
+              <input type="number" step="0.0000001" min="0.0000001" max="22.09" value={inputP} onChange={e => setInputP(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 0.1" />
             </div>
           </div>
           
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>TEMPERATURA (°C)</label>
             <div className={styles.searchInput}>
-              <input type="number" step="0.1" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Ex: 150" />
+              <input type="number" step="0.1" min="0.01" max="200" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Até 200°C" />
               <button onClick={handleSearch} style={{marginLeft: '10px'}}>Buscar</button>
             </div>
           </div>
@@ -287,7 +288,6 @@ export default function App() {
           </div>
         )}
 
-        {/* STATUS COM ENERGIA INTERNA */}
         {analysis && (
           <div className={styles.memorialContainer} style={{ borderLeftColor: analysis.color }}>
             <h3 style={{ color: analysis.color, margin: '0 0 10px 0', fontSize: '15px', fontFamily: 'var(--font-mono)' }}>
@@ -311,9 +311,7 @@ export default function App() {
 
             <div className={styles.memorialText}>
               <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '8px'}}>MEMORIAL DE CÁLCULO E FÓRMULAS:</strong>
-              {analysis.memorial.map((line, i) => (
-                <div key={i} className={styles.memorialLine}>{line}</div>
-              ))}
+              {analysis.memorial.map((line, i) => (<div key={i} className={styles.memorialLine}>{line}</div>))}
             </div>
           </div>
         )}
@@ -342,7 +340,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TABELA DINÂMICA COM ENERGIA INTERNA U */}
         {renderTable && renderTable.headers && (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
