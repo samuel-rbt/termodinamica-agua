@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
-import { satT } from './data';
+import { satT, satP } from './data';
 
 export default function RankineChart({ analysis, currentResult }) {
   const svgRef = useRef();
   const wrapperRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 0, height: 450 });
 
-  // Prepara os dados da Cúpula de Saturação
   const domeData = useMemo(() => {
     if (!satT || satT.length === 0) return [];
     const validRows = satT.filter(row => typeof row[6] === 'number' && typeof row[7] === 'number');
@@ -16,35 +15,26 @@ export default function RankineChart({ analysis, currentResult }) {
     return [...left, ...right];
   }, []);
 
-  // Resize dinâmico
   useEffect(() => {
     const observeTarget = wrapperRef.current;
     if (!observeTarget) return;
-
     const resizeObserver = new ResizeObserver(entries => {
       if (entries[0]) {
-        setDimensions({
-          width: entries[0].contentRect.width,
-          height: 450
-        });
+        setDimensions({ width: entries[0].contentRect.width, height: 450 });
       }
     });
-
     resizeObserver.observe(observeTarget);
     return () => resizeObserver.unobserve(observeTarget);
   }, []);
 
-  // Lógica principal do D3
   useEffect(() => {
     const { width, height } = dimensions;
     if (width === 0 || domeData.length === 0) return;
 
-    // Limpa renderizações anteriores do SVG e do Tooltip
     const container = d3.select(wrapperRef.current);
     container.select("svg").selectAll("*").remove(); 
     container.selectAll(".d3-tooltip").remove(); 
 
-    // --- CRIAÇÃO DO TOOLTIP FLUTUANTE ---
     const tooltip = container.append("div")
       .attr("class", "d3-tooltip")
       .style("position", "absolute")
@@ -55,7 +45,7 @@ export default function RankineChart({ analysis, currentResult }) {
       .style("border-radius", "6px")
       .style("font-family", "var(--font-mono)")
       .style("font-size", "12px")
-      .style("pointer-events", "none") // Impede que o mouse bugue ao passar por cima do texto
+      .style("pointer-events", "none") 
       .style("opacity", 0)
       .style("z-index", 10)
       .style("box-shadow", "0 4px 6px -1px rgba(0, 0, 0, 0.2)");
@@ -65,31 +55,21 @@ export default function RankineChart({ analysis, currentResult }) {
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
     let currentT = 100;
     let currentS = 0;
+    const hasUserPoint = analysis && analysis.s_val !== undefined && analysis.s_val !== null;
 
-    if (analysis) {
+    if (hasUserPoint) {
         currentT = Number(analysis.T) || 100;
-        if (analysis.s_val !== undefined && analysis.s_val !== null) {
-            currentS = Array.isArray(analysis.s_val) ? Number(analysis.s_val[1]) : Number(analysis.s_val);
-        }
-    } else if (currentResult && currentResult.values) {
-        currentT = Number(currentResult.values[0]) || 100;
-        if (currentResult.keys) {
-            const sIndex = currentResult.keys.indexOf('s');
-            const sgIndex = currentResult.keys.indexOf('sg');
-            if (sIndex !== -1) currentS = Number(currentResult.values[sIndex]);
-            else if (sgIndex !== -1) currentS = Number(currentResult.values[sgIndex]);
-        }
+        currentS = Array.isArray(analysis.s_val) ? Number(analysis.s_val[1]) : Number(analysis.s_val);
     }
     
     currentT = isNaN(currentT) ? 100 : currentT;
     currentS = isNaN(currentS) ? 0 : currentS;
 
-    const domainMaxT = Math.max(400, currentT + 30);
+    const domainMaxT = Math.max(400, currentT + 50); 
     const domainMaxS = Math.max(10, currentS + 1);
 
     const xScale = d3.scaleLinear().domain([0, domainMaxS]).range([0, innerWidth]);
@@ -98,127 +78,131 @@ export default function RankineChart({ analysis, currentResult }) {
     const safeX = (val) => { const res = xScale(val); return isNaN(res) ? 0 : res; };
     const safeY = (val) => { const res = yScale(val); return isNaN(res) ? 0 : res; };
 
-    // --- EIXOS E GRID ---
-    g.append("g")
-      .attr("transform", `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale).ticks(10))
-      .attr("color", "#64748b")
+    g.append("g").attr("transform", `translate(0,${innerHeight})`).call(d3.axisBottom(xScale).ticks(10)).attr("color", "#64748b")
       .selectAll("text").style("font-family", "var(--font-mono)").style("font-size", "11px");
 
-    g.append("g")
-      .call(d3.axisLeft(yScale).ticks(10))
-      .attr("color", "#64748b")
+    g.append("g").call(d3.axisLeft(yScale).ticks(10)).attr("color", "#64748b")
       .selectAll("text").style("font-family", "var(--font-mono)").style("font-size", "11px");
 
-    g.append("text")
-      .attr("x", innerWidth / 2).attr("y", innerHeight + margin.bottom - 10)
-      .style("text-anchor", "middle").style("fill", "#94a3b8").style("font-family", "var(--font-sans)")
-      .style("font-size", "13px").style("font-weight", "500").text("Entropia, s (kJ/kg·K)");
+    g.append("text").attr("x", innerWidth / 2).attr("y", innerHeight + margin.bottom - 10)
+      .style("text-anchor", "middle").style("fill", "#94a3b8").style("font-family", "var(--font-sans)").style("font-size", "13px").text("Entropia, s (kJ/kg·K)");
 
-    g.append("text")
-      .attr("transform", "rotate(-90)").attr("y", -margin.left + 15).attr("x", -innerHeight / 2)
-      .style("text-anchor", "middle").style("fill", "#94a3b8").style("font-family", "var(--font-sans)")
-      .style("font-size", "13px").style("font-weight", "500").text("Temperatura, T (°C)");
+    g.append("text").attr("transform", "rotate(-90)").attr("y", -margin.left + 15).attr("x", -innerHeight / 2)
+      .style("text-anchor", "middle").style("fill", "#94a3b8").style("font-family", "var(--font-sans)").style("font-size", "13px").text("Temperatura, T (°C)");
 
-    g.append("g").attr("class", "grid").attr("color", "rgba(51, 65, 85, 0.4)").style("stroke-dasharray", ("3,3"))
-        .call(d3.axisBottom(xScale).tickSize(innerHeight).tickFormat(""));
-    g.append("g").attr("class", "grid").attr("color", "rgba(51, 65, 85, 0.4)").style("stroke-dasharray", ("3,3"))
-        .call(d3.axisLeft(yScale).tickSize(-innerWidth).tickFormat(""));
+    g.append("g").attr("class", "grid").attr("color", "rgba(51, 65, 85, 0.4)").style("stroke-dasharray", ("3,3")).call(d3.axisBottom(xScale).tickSize(innerHeight).tickFormat(""));
+    g.append("g").attr("class", "grid").attr("color", "rgba(51, 65, 85, 0.4)").style("stroke-dasharray", ("3,3")).call(d3.axisLeft(yScale).tickSize(-innerWidth).tickFormat(""));
 
-    const lineGenerator = d3.line().x(d => safeX(d.s)).y(d => safeY(d.T)).curve(d3.curveMonotoneX);
+    // O Segredo: DOIS tipos de Lápis. Um curva para a Cúpula, outro reto para os Ciclos!
+    const domeLineGenerator = d3.line().x(d => safeX(d.s)).y(d => safeY(d.T)).curve(d3.curveMonotoneX);
+    const cycleLineGenerator = d3.line().x(d => safeX(d.s)).y(d => safeY(d.T)); // Sem curva suave, mantém as retas retas.
 
-    // --- 1. CÚPULA DE SATURAÇÃO ---
-    g.append("path").datum(domeData).attr("fill", "rgba(71, 85, 105, 0.05)").attr("stroke", "#64748b").attr("stroke-width", 2).attr("d", lineGenerator);
+    // --- 0. CÚPULA DE SATURAÇÃO ---
+    g.append("path").datum(domeData).attr("fill", "rgba(71, 85, 105, 0.05)").attr("stroke", "#64748b").attr("stroke-width", 2).attr("d", domeLineGenerator);
 
-    // --- FUNÇÃO PARA DESENHAR CICLOS ---
-    const drawCycle = (points, color, label, titleText) => {
-        g.append("path").datum(points).attr("fill", "transparent").attr("stroke", color)
-            .attr("stroke-width", 2).attr("stroke-dasharray", "5,5").attr("d", lineGenerator);
+    const drawCycle = (points, color, label, titleText, isReference = false) => {
+        g.append("path")
+            .datum(points)
+            .attr("fill", isReference ? "transparent" : color)
+            .style("fill-opacity", isReference ? 0 : 0.1) // Substituí a gambiarra de cor hexadecimal para evitar erros visuais
+            .attr("stroke", color)
+            .attr("stroke-width", isReference ? 1.5 : 2.5)
+            .attr("stroke-dasharray", isReference ? "4,4" : "none")
+            .style("opacity", isReference ? 0.4 : 1) 
+            .attr("d", cycleLineGenerator);
 
         g.selectAll(`.cycle-nodes-${label}`)
-            .data(points.filter(p => typeof p.id === 'number'))
-            .enter()
-            .append("circle")
-            .attr("cx", d => safeX(d.s))
-            .attr("cy", d => safeY(d.T))
-            .attr("r", 5)
-            .attr("fill", "var(--bg)")
-            .attr("stroke", color)
-            .attr("stroke-width", 2)
-            .style("cursor", "crosshair")
-            // EVENTOS DO TOOLTIP
-            .on("mouseover", function() {
-                tooltip.style("opacity", 1);
-                d3.select(this).attr("r", 7).attr("fill", color); // Efeito hover
-            })
+            .data(points.filter(p => typeof p.id === 'number' || typeof p.id === 'string'))
+            .enter().append("circle").attr("cx", d => safeX(d.s)).attr("cy", d => safeY(d.T)).attr("r", isReference ? 3 : 5)
+            .attr("fill", "var(--bg)").attr("stroke", color).attr("stroke-width", isReference ? 1.5 : 2).style("opacity", isReference ? 0.4 : 1).style("cursor", "crosshair")
+            .on("mouseover", function() { tooltip.style("opacity", 1); d3.select(this).attr("r", 8).attr("fill", color).style("opacity", 1); })
             .on("mousemove", function(event, d) {
                 const [x, y] = d3.pointer(event, wrapperRef.current);
                 tooltip.html(`<strong style="color:${color}">${titleText} (Nó ${d.id})</strong><br/>T: ${d.T.toFixed(2)} °C<br/>s: ${d.s.toFixed(4)}`)
-                       .style("left", (x + 15) + "px")
-                       .style("top", (y - 15) + "px");
+                       .style("left", (x + 15) + "px").style("top", (y - 15) + "px");
             })
-            .on("mouseleave", function() {
-                tooltip.style("opacity", 0);
-                d3.select(this).attr("r", 5).attr("fill", "var(--bg)"); // Reseta efeito
-            });
+            .on("mouseleave", function() { tooltip.style("opacity", 0); d3.select(this).attr("r", isReference ? 3 : 5).attr("fill", "var(--bg)").style("opacity", isReference ? 0.4 : 1); });
+            
+        if (!isReference) {
+            g.selectAll(`.cycle-labels-${label}`)
+                .data(points.filter(p => typeof p.id === 'number'))
+                .enter().append("text")
+                .attr("x", d => safeX(d.s) + (d.id === 2 || d.id === 3 ? -14 : 10))
+                .attr("y", d => safeY(d.T) - 8)
+                .text(d => d.id)
+                .style("fill", color)
+                .style("font-family", "var(--font-mono)")
+                .style("font-size", "14px")
+                .style("font-weight", "bold");
+        }
     };
 
     const getSat = (T) => satT.find(r => r[0] >= T) || satT[satT.length-1];
 
-    // --- 2. RANKINE IDEAL ---
+    // --- 1. RANKINE E CARNOT (REFERÊNCIAS) ---
     const tHighR = 300; const tLowR = 50;
     const ptHighR = getSat(tHighR); const ptLowR = getSat(tLowR);
-    const s1 = ptHighR[7]; 
     const rankinePts = [
-        { id: 1, s: s1, T: tHighR }, { id: 2, s: s1, T: tLowR }, 
-        { id: 3, s: ptLowR[6], T: tLowR }, { id: 4, s: ptLowR[6], T: tLowR + 5 }, 
-        { id: '4a', s: ptHighR[6], T: tHighR }, { id: 1, s: s1, T: tHighR }
+        { id: 'R1', s: ptHighR[7], T: tHighR }, { id: 'R2', s: ptHighR[7], T: tLowR }, 
+        { id: 'R3', s: ptLowR[6], T: tLowR }, { id: 'R4', s: ptLowR[6], T: tLowR + 5 }, 
+        { id: 'R4a', s: ptHighR[6], T: tHighR }, { id: 'R1', s: ptHighR[7], T: tHighR }
     ];
-    drawCycle(rankinePts, "#3b82f6", "rankine", "Rankine Ideal");
+    drawCycle(rankinePts, "#3b82f6", "ref-rankine", "Ref: Rankine Ideal", true);
 
-    // --- 3. CARNOT ---
     const tHighC = 250; const tLowC = 100;
-    const ptHighC = getSat(tHighC); const ptLowC = getSat(tLowC);
+    const ptHighC = getSat(tHighC);
     const carnotPts = [
-        { id: 1, s: ptHighC[7], T: tHighC }, { id: 2, s: ptHighC[7], T: tLowC },
-        { id: 3, s: ptHighC[6], T: tLowC }, { id: 4, s: ptHighC[6], T: tHighC },
-        { id: 1, s: ptHighC[7], T: tHighC }
+        { id: 'C1', s: ptHighC[7], T: tHighC }, { id: 'C2', s: ptHighC[7], T: tLowC },
+        { id: 'C3', s: ptHighC[6], T: tLowC }, { id: 'C4', s: ptHighC[6], T: tHighC },
+        { id: 'C1', s: ptHighC[7], T: tHighC }
     ];
-    drawCycle(carnotPts, "#f59e0b", "carnot", "Carnot");
+    drawCycle(carnotPts, "#f59e0b", "ref-carnot", "Ref: Carnot", true);
 
-    // --- 4. SEU PONTO CALCULADO ---
-    if (analysis && analysis.s_val !== undefined && analysis.s_val !== null) {
-      const isMixture = Array.isArray(analysis.s_val);
-      const pointColor = analysis.color || "#10b981";
-      
-      if (isMixture) {
-        const s0 = Number(analysis.s_val[0]) || 0;
-        const s1 = Number(analysis.s_val[1]) || 0;
+    // --- 3. O SEU CICLO ---
+    if (hasUserPoint) {
+        let currentTsat = currentT;
+        let currentP = 0;
+        
+        if (currentResult && currentResult.keys) {
+            const pIdx = currentResult.keys.indexOf('P');
+            if (pIdx !== -1) currentP = Number(currentResult.values[pIdx]); // Agora em kPa
+        }
+        
+        if (currentP > 0) {
+            const pBar = currentP / 100; // kPa para Bar
+            if (pBar <= satP[0][0]) currentTsat = satP[0][1];
+            else if (pBar >= satP[satP.length-1][0]) currentTsat = satP[satP.length-1][1];
+            else {
+                const closestSatP = satP.reduce((prev, curr) => Math.abs(curr[0] - pBar) < Math.abs(prev[0] - pBar) ? curr : prev);
+                currentTsat = closestSatP[1];
+            }
+        }
 
-        g.append("line").attr("x1", safeX(s0)).attr("y1", safeY(currentT)).attr("x2", safeX(s1)).attr("y2", safeY(currentT)).attr("stroke", pointColor).attr("stroke-width", 2.5).attr("stroke-dasharray", "4,4");
+        let tLow = 50; 
+        if (currentTsat <= 60) tLow = Math.max(0.01, currentTsat - 20);
+
+        const ptLow = getSat(tLow);
+        const s3 = ptLow[6]; 
+        const ptBoiler = getSat(currentTsat);
+        const sf_boiler = ptBoiler[6];
+        const sg_boiler = ptBoiler[7];
+
+        const userColor = analysis.color || "#10b981";
+
+        const userCycle = [
+            { id: 1, s: currentS, T: currentT },            
+            { id: 2, s: currentS, T: tLow },                
+            { id: 3, s: s3, T: tLow },                      
+            { id: 4, s: s3, T: tLow + 5 },                  
+            { id: '4a', s: sf_boiler, T: currentTsat }      
+        ];
         
-        g.selectAll(".mix-points").data([s0, s1]).enter().append("circle").attr("cx", d => safeX(d)).attr("cy", safeY(currentT)).attr("r", 5).attr("fill", pointColor).attr("stroke", "#0f172a").attr("stroke-width", 2).style("cursor", "crosshair")
-          .on("mouseover", function() { tooltip.style("opacity", 1); d3.select(this).attr("r", 8); })
-          .on("mousemove", function(event, d) {
-              const [x, y] = d3.pointer(event, wrapperRef.current);
-              tooltip.html(`<strong style="color:${pointColor}">Seu Ponto (Mistura)</strong><br/>T: ${currentT.toFixed(2)} °C<br/>s: ${d.toFixed(4)}`)
-                     .style("left", (x + 15) + "px").style("top", (y - 15) + "px");
-          })
-          .on("mouseleave", function() { tooltip.style("opacity", 0); d3.select(this).attr("r", 5); });
-          
-      } else {
-        g.append("line").attr("x1", safeX(currentS)).attr("y1", safeY(currentT)).attr("x2", safeX(currentS)).attr("y2", innerHeight).attr("stroke", pointColor).attr("stroke-width", 1).attr("stroke-dasharray", "2,2").style("opacity", 0.5);
-        g.append("line").attr("x1", safeX(currentS)).attr("y1", safeY(currentT)).attr("x2", 0).attr("y2", safeY(currentT)).attr("stroke", pointColor).attr("stroke-width", 1).attr("stroke-dasharray", "2,2").style("opacity", 0.5);
-        
-        g.append("circle").datum({ T: currentT, s: currentS }).attr("cx", safeX(currentS)).attr("cy", safeY(currentT)).attr("r", 6).attr("fill", pointColor).attr("stroke", "#fff").attr("stroke-width", 2).style("cursor", "crosshair")
-          .on("mouseover", function() { tooltip.style("opacity", 1); d3.select(this).attr("r", 9); })
-          .on("mousemove", function(event, d) {
-              const [x, y] = d3.pointer(event, wrapperRef.current);
-              tooltip.html(`<strong style="color:${pointColor}">Seu Ponto Solicitado</strong><br/>T: ${d.T.toFixed(2)} °C<br/>s: ${d.s.toFixed(4)}`)
-                     .style("left", (x + 15) + "px").style("top", (y - 15) + "px");
-          })
-          .on("mouseleave", function() { tooltip.style("opacity", 0); d3.select(this).attr("r", 6); });
-      }
+        if (currentT > currentTsat + 0.1) {
+            userCycle.push({ id: '4b', s: sg_boiler, T: currentTsat });
+        }
+        userCycle.push({ id: 1, s: currentS, T: currentT }); 
+
+        drawCycle(userCycle, userColor, "user-cycle", "Seu Ciclo Calculado", false);
     }
 
   }, [dimensions, analysis, currentResult, domeData]);
@@ -227,8 +211,9 @@ export default function RankineChart({ analysis, currentResult }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text)', fontWeight: '600' }}>
-                    Diagrama T-s
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text)', fontWeight: '600' }}>Diagrama T-s</span>
+                <span style={{ fontSize: '12px', color: 'var(--text3)', background: 'var(--bg3)', padding: '2px 8px', borderRadius: '12px' }}>
+                    {analysis ? "Seu Ciclo Calculado + Referências" : "Modelos de Referência"}
                 </span>
             </div>
         </div>
@@ -238,18 +223,12 @@ export default function RankineChart({ analysis, currentResult }) {
         </div>
 
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text3)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '20px', height: '2px', borderBottom: '2px dashed #64748b' }}></span> Cúpula de Saturação
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent)' }}></span> Seu Ponto
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6' }}></span> Rankine Ideal
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }}></span> Carnot
-            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '20px', height: '2px', borderBottom: '2px dashed #64748b' }}></span> Cúpula</div>
+            {analysis && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: analysis.color || 'var(--accent)' }}></span> Seu Ciclo</div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', opacity: 0.4 }}></span> Ref. Rankine</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b', opacity: 0.4 }}></span> Ref. Carnot</div>
         </div>
     </div>
   );
