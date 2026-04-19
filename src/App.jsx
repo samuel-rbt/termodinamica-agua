@@ -18,7 +18,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://127.0.0.1:5000/calcular", {
+      const res = await fetch("https://termodinamica-agua.onrender.com", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
