@@ -1,9 +1,11 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import RankineChart from './RankineChart';
 import { satT, satP, supData } from './data';
 import styles from './App.module.css';
 
-// Função auxiliar de interpolação linear (Substitui o Python)
+// ---------------------------------------------------------
+// FUNÇÕES MATEMÁTICAS E DE INTERPOLAÇÃO
+// ---------------------------------------------------------
 function interp(x0, y0, x1, y1, x) {
   if (x0 === x1) return y0;
   return y0 + ((x - x0) / (x1 - x0)) * (y1 - y0);
@@ -12,32 +14,60 @@ function interp(x0, y0, x1, y1, x) {
 function getSatPropsByP(p_kpa) {
   const p_bar = p_kpa / 100;
   let idx = satP.findIndex(row => row[0] >= p_bar);
-  if (idx === 0) idx = 1;
+  
+  // Ordem correta das travas de limite
   if (idx === -1) idx = satP.length - 1;
+  if (idx === 0) idx = 1;
   
   const r0 = satP[idx - 1]; const r1 = satP[idx];
-  const t = interp(r0[0], r0[1], r1[0], r1[1], p_bar);
-  const vf = interp(r0[0], r0[2], r1[0], r1[2], p_bar);
-  const vg = interp(r0[0], r0[3], r1[0], r1[3], p_bar);
-  const hf = interp(r0[0], r0[4], r1[0], r1[4], p_bar);
-  const hg = interp(r0[0], r0[5], r1[0], r1[5], p_bar);
-  const sf = interp(r0[0], r0[6], r1[0], r1[6], p_bar);
-  const sg = interp(r0[0], r0[7], r1[0], r1[7], p_bar);
-  return { T: t, vf, vg, hf, hg, sf, sg };
+  return {
+    P: p_kpa,
+    T: interp(r0[0], r0[1], r1[0], r1[1], p_bar),
+    vf: interp(r0[0], r0[2], r1[0], r1[2], p_bar),
+    vg: interp(r0[0], r0[3], r1[0], r1[3], p_bar),
+    hf: interp(r0[0], r0[4], r1[0], r1[4], p_bar),
+    hg: interp(r0[0], r0[5], r1[0], r1[5], p_bar),
+    sf: interp(r0[0], r0[6], r1[0], r1[6], p_bar),
+    sg: interp(r0[0], r0[7], r1[0], r1[7], p_bar)
+  };
 }
 
+function getSupPropsByPS(p_kpa, s_target) {
+  const p_bar = p_kpa / 100;
+  // Mantemos as chaves como strings para evitar o bug de ponto flutuante do JS
+  const keys = Object.keys(supData);
+  const closestKeyStr = keys.reduce((prevStr, currStr) => {
+    return Math.abs(parseFloat(currStr) - p_bar) < Math.abs(parseFloat(prevStr) - p_bar) ? currStr : prevStr;
+  });
+  
+  const table = supData[closestKeyStr].rows;
+
+  let idx = table.findIndex(r => r[3] >= s_target);
+  
+  // Ordem correta das travas de limite
+  if (idx === -1) idx = table.length - 1;
+  if (idx === 0) idx = 1;
+
+  const r0 = table[idx - 1];
+  const r1 = table[idx];
+  
+  return {
+    T: interp(r0[3], r0[0], r1[3], r1[0], s_target),
+    h: interp(r0[3], r0[2], r1[3], r1[2], s_target)
+  };
+}
+
+// ---------------------------------------------------------
+// COMPONENTE PRINCIPAL
+// ---------------------------------------------------------
 export default function App() {
   const [inputP, setInputP] = useState('');
   const [inputT, setInputT] = useState('');
-  
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
   const buscar = useCallback(() => {
-    if (!inputP || !inputT) {
-      alert("Insira a Pressão e a Temperatura para calcular o ciclo.");
-      return;
-    }
+    if (!inputP || !inputT) return alert("Por favor, insira Pressão e Temperatura.");
     setError(null);
 
     try {
@@ -45,49 +75,65 @@ export default function App() {
       const t_c = parseFloat(inputT);
       const p_cond_kpa = 10; // Condensador fixo em 10 kPa
 
-      // --- CÁLCULO DAS PROPRIEDADES VIA JAVASCRIPT (Usando data.js) ---
       const satCaldeira = getSatPropsByP(p_kpa);
       const satCondensador = getSatPropsByP(p_cond_kpa);
 
-      let estado = "";
+      let estado = ""; 
       let h1, s1;
 
+      // --- PONTO 1: CALDEIRA ---
       if (t_c > satCaldeira.T + 0.1) {
         estado = "VAPOR SUPERAQUECIDO";
-        // Simplificação matemática usando o Superaquecido mais próximo (Para o JS não explodir)
         const p_bar = p_kpa / 100;
         const keys = Object.keys(supData);
-        const closestKey = keys.reduce((prev, curr) => Math.abs(curr - p_bar) < Math.abs(prev - p_bar) ? curr : prev);
-        const table = supData[closestKey].rows;
-        let idx = table.findIndex(r => r[0] >= t_c);
-        if (idx <= 0) idx = 1; if (idx === -1) idx = table.length - 1;
+        // Proteção contra dízimas periódicas no JS
+        const closestKeyStr = keys.reduce((prev, curr) => Math.abs(parseFloat(curr) - p_bar) < Math.abs(parseFloat(prev) - p_bar) ? curr : prev);
+        const table = supData[closestKeyStr].rows;
         
-        const v1 = interp(table[idx-1][0], table[idx-1][1], table[idx][0], table[idx][1], t_c);
+        let idx = table.findIndex(r => r[0] >= t_c);
+        
+        // Ordem correta das travas de limite
+        if (idx === -1) idx = table.length - 1;
+        if (idx === 0) idx = 1;
+        
         h1 = interp(table[idx-1][0], table[idx-1][2], table[idx][0], table[idx][2], t_c);
         s1 = interp(table[idx-1][0], table[idx-1][3], table[idx][0], table[idx][3], t_c);
       } else if (t_c < satCaldeira.T - 0.1) {
         estado = "LÍQUIDO COMPRIMIDO";
-        h1 = satCaldeira.hf; 
-        s1 = satCaldeira.sf;
+        h1 = satCaldeira.hf; s1 = satCaldeira.sf;
       } else {
         estado = "MISTURA SATURADA";
-        h1 = satCaldeira.hg; // Assumindo vapor para o ciclo
-        s1 = satCaldeira.sg;
+        h1 = satCaldeira.hg; s1 = satCaldeira.sg;
       }
 
-      // --- PONTOS DO CICLO RANKINE ---
-      const p1 = { T: t_c, h: h1, s: s1 };
-      const p3 = { T: satCondensador.T, h: satCondensador.hf, s: satCondensador.sf, v: satCondensador.vf };
-      
-      // Ponto 2 (Saída Turbina, s2 = s1)
-      const x2 = (s1 - satCondensador.sf) / (satCondensador.sg - satCondensador.sf);
-      const h2 = satCondensador.hf + x2 * (satCondensador.hg - satCondensador.hf);
-      const p2 = { T: satCondensador.T, h: h2, s: s1 };
+      const p1 = { id: 1, T: t_c, h: h1, s: s1 };
 
-      // Ponto 4 (Saída Bomba, h4 = h3 + v3*dP)
+      // --- PONTO 2: TURBINA (Expansão Isentrópica s2 = s1) ---
+      let h2, t2;
+      if (s1 > satCondensador.sg) {
+         // Caso 2: Vapor superaquecido na saída
+         const propsSuper = getSupPropsByPS(p_cond_kpa, s1);
+         h2 = propsSuper.h;
+         t2 = propsSuper.T;
+      } else if (s1 < satCondensador.sf) {
+         // Caso 3: Líquido comprimido na saída
+         h2 = satCondensador.hf;
+         t2 = satCondensador.T;
+      } else {
+         // Caso 1: Mistura Saturada (Normal)
+         const x2 = (s1 - satCondensador.sf) / (satCondensador.sg - satCondensador.sf);
+         h2 = satCondensador.hf + x2 * (satCondensador.hg - satCondensador.hf);
+         t2 = satCondensador.T;
+      }
+      const p2 = { id: 2, T: t2, h: h2, s: s1 };
+
+      // --- PONTOS 3 E 4: CONDENSADOR E BOMBA ---
+      const p3 = { id: 3, T: satCondensador.T, h: satCondensador.hf, s: satCondensador.sf, v: satCondensador.vf };
+      
       const w_bomba = p3.v * (p_kpa - p_cond_kpa);
       const h4 = p3.h + w_bomba;
-      const p4 = { T: satCondensador.T + 1, h: h4, s: p3.s }; // +1 T apenas para visualização
+      const deltaT_bomba = w_bomba / 4.184; // Cp da água ~= 4.184 kJ/kgK
+      const p4 = { id: 4, T: p3.T + deltaT_bomba, h: h4, s: p3.s };
 
       // --- BALANÇO DE ENERGIA ---
       const Wt = p1.h - p2.h;
@@ -95,57 +141,62 @@ export default function App() {
       const Qin = p1.h - p4.h;
       const eta = Qin > 0 ? (Wt - Wb) / Qin : 0;
 
-      // --- CONSTRUIR TABELA DINÂMICA VAN WYLEN DO DATA.JS ---
-      const tabela = satT.filter((row, i) => i % 2 === 0).map(row => {
-          const t = row[0];
-          const pk = row[1] * 100; // bar para kPa
-          const vl = row[2];
-          const vv = row[3];
-          const hl = row[4];
-          const hv = row[5];
-          const sl = row[6];
-          const sv = row[7];
-          const hlv = hv - hl;
-          const slv = sv - sl;
-          // Energia Interna u = h - Pv
-          const ul = hl - (pk * vl);
-          const uv = hv - (pk * vv);
-          const ulv = uv - ul;
+      // --- TABELA VAN WYLEN (Injeção de Ponto Dinâmico) ---
+      let baseT = satT.filter(row => row[0] % 10 === 0 || row[0] === 0.01).map(r => r[0]);
+      if (!baseT.includes(t_c) && t_c >= 0.01 && t_c <= 374.14) baseT.push(t_c);
+      baseT.sort((a, b) => a - b);
+
+      const tabela = baseT.map(t_val => {
+          let idx = satT.findIndex(r => r[0] >= t_val);
+          
+          // Ordem correta das travas de limite
+          if (idx === -1) idx = satT.length - 1;
+          if (idx === 0) idx = 1;
+          
+          const r0 = satT[idx-1]; const r1 = satT[idx];
+          
+          const pBar = interp(r0[0], r0[1], r1[0], r1[1], t_val);
+          const vl = interp(r0[0], r0[2], r1[0], r1[2], t_val);
+          const vv = interp(r0[0], r0[3], r1[0], r1[3], t_val);
+          const hl = interp(r0[0], r0[4], r1[0], r1[4], t_val);
+          const hv = interp(r0[0], r0[5], r1[0], r1[5], t_val);
+          const sl = interp(r0[0], r0[6], r1[0], r1[6], t_val);
+          const sv = interp(r0[0], r0[7], r1[0], r1[7], t_val);
+          const pkpa = pBar * 100;
 
           return {
-              is_user: Math.abs(t - t_c) < 2,
-              valores: [t, pk, vl, vv, ul, ulv, uv, hl, hlv, hv, sl, slv, sv]
+              is_user: Math.abs(t_val - t_c) < 0.01,
+              valores: [t_val, pkpa, vl, vv, hl - (pkpa * vl), (hv - hl) - (pkpa * (vv - vl)), hv - (pkpa * vv), hl, (hv - hl), hv, sl, (sv - sl), sv]
           };
       });
 
       setData({
           pontos: [p1, p2, p3, p4],
-          estado,
-          Tsat: satCaldeira.T,
-          tabela: tabela.slice(0, 15), // Limita as linhas para não travar
+          satCaldeira: satCaldeira,
+          estado, Tsat: satCaldeira.T, tabela,
           formulas: { Wt, Wb, Qin, eta }
       });
-
     } catch (err) {
-      setError("Valores fora da faixa da tabela local.");
+      console.error(err); // <-- Deixei isso aqui. Se algum dia der erro, aperte F12 e olhe o console do navegador que ele te dedura o que foi!
+      setError("Erro matemático: Os parâmetros fornecidos excedem os limites das tabelas termodinâmicas.");
     }
   }, [inputP, inputT]);
 
   return (
-    <div className={styles.app}>
+    <div className={styles.app} style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.logo}>
-            <span className={styles.logoIcon}>H₂O</span>
-            <div>
-              <div className={styles.logoTitle}>Tabelas Termodinâmicas</div>
-              <div className={styles.logoSub}>Propriedades da Água e Vapor</div>
-            </div>
+             <span className={styles.logoIcon}>H₂O</span>
+             <div>
+                <div className={styles.logoTitle}>Tabelas Termodinâmicas</div>
+                <div className={styles.logoSub}>Propriedades da Água e Vapor</div>
+             </div>
           </div>
         </div>
       </header>
 
-      <main className={styles.main}>
+      <main className={styles.main} style={{ flex: 1 }}>
         <div className={styles.searchBar}>
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>PRESSÃO (kPa)</label>
@@ -157,13 +208,13 @@ export default function App() {
             <label className={styles.searchLabel}>TEMPERATURA (°C)</label>
             <div className={styles.searchInput}>
               <input type="number" step="0.1" value={inputT} onChange={e => setInputT(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscar()} placeholder="Ex: 350" />
-              <button onClick={buscar} style={{marginLeft: '10px'}}>Buscar</button>
+              <button onClick={buscar} style={{marginLeft: '10px'}}>Calcular Ciclo</button>
             </div>
           </div>
         </div>
-
+        
         {error && <div className={`${styles.resultCard} ${styles.resultError}`}><p className={styles.errorMsg}>{error}</p></div>}
-
+        
         {data && (
           <>
             <div className={styles.memorialContainer} style={{ borderLeftColor: 'var(--accent)' }}>
@@ -177,7 +228,7 @@ export default function App() {
               </div>
               
               <div className={styles.memorialText} style={{marginTop: '20px', background: 'var(--bg2)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)'}}>
-                <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '10px', fontFamily: 'var(--font-mono)'}}>MEMORIAL DE CÁLCULO E ANÁLISE DO CICLO (Local JS):</strong>
+                <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '10px', fontFamily: 'var(--font-mono)'}}>MEMORIAL DE CÁLCULO E ANÁLISE DO CICLO (Motor React/JS):</strong>
                 
                 <div className={styles.memorialLine} style={{ color: 'var(--accent)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '10px' }}>[PARÂMETROS DE ENTRADA]</div>
                 <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>P_caldeira = {inputP} kPa</div>
@@ -199,8 +250,8 @@ export default function App() {
               </div>
             </div>
 
-            <div className={styles.resultCard} style={{ padding: '1rem', overflow: 'hidden' }}>
-              <RankineChart pontos={data.pontos} inputT={inputT} inputP={inputP} />
+            <div className={styles.resultCard} style={{ padding: '1rem', overflow: 'hidden', marginTop: '20px' }}>
+              <RankineChart pontos={data.pontos} satCaldeira={data.satCaldeira} />
             </div>
 
             <div className={styles.resultCard} style={{ marginTop: '20px', overflow: 'hidden' }}>
