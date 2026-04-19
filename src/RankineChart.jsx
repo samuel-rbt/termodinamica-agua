@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { satT } from './data';
 
-export default function RankineChart({ pontos, satCaldeira }) {
+export default function RankineChart({ pontos, satCaldeira, cycleColor }) {
   const svgRef = useRef();
 
   const domeData = useMemo(() => {
@@ -34,7 +34,6 @@ export default function RankineChart({ pontos, satCaldeira }) {
 
     const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Calcula a escala exata baseada em TUDO para o gráfico nunca cortar
     const allS = [...pontos.map(p => p.s), ...domeData.map(d => d.s)];
     const allT = [...pontos.map(p => p.T), ...domeData.map(d => d.T)];
 
@@ -59,7 +58,9 @@ export default function RankineChart({ pontos, satCaldeira }) {
             .attr("stroke-dasharray", "4,4").style("opacity", 0.4).attr("d", cycleLine);
     };
 
-    // Desenho físico contínuo da curva (Acompanha a Cúpula e Sobe)
+    // Cor dinâmica principal do sistema (recebida do App.jsx)
+    const mainColor = cycleColor || "#10b981";
+
     const visualPath = [pontos[0], pontos[1], pontos[2], pontos[3]];
     if (pontos[0].T > satCaldeira.T + 0.1) {
         visualPath.push({ T: satCaldeira.T, s: satCaldeira.sf });
@@ -70,24 +71,23 @@ export default function RankineChart({ pontos, satCaldeira }) {
     visualPath.push(pontos[0]); 
 
     const realCycleLine = d3.line().x(d => x(d.s)).y(d => y(d.T));
-    g.append("path").datum(visualPath).attr("fill", "rgba(16, 185, 129, 0.15)")
-        .attr("stroke", "#10b981").attr("stroke-width", 2.5).attr("d", realCycleLine);
+    g.append("path").datum(visualPath)
+        .style("fill", mainColor).style("fill-opacity", 0.15) // Fundo com transparência
+        .attr("stroke", mainColor).attr("stroke-width", 2.5).attr("d", realCycleLine);
 
-    // Bolinhas interativas (SOMENTE 1, 2, 3 e 4)
     g.selectAll(".real-nodes").data(pontos)
         .enter().append("circle").attr("cx", d => x(d.s)).attr("cy", d => y(d.T)).attr("r", 5)
-        .attr("fill", "var(--bg)").attr("stroke", "#10b981").attr("stroke-width", 2).style("cursor", "crosshair")
-        .on("mouseover", function() { tooltip.style("opacity", 1); d3.select(this).attr("r", 8).attr("fill", "#10b981"); })
+        .attr("fill", "var(--bg)").attr("stroke", mainColor).attr("stroke-width", 2).style("cursor", "crosshair")
+        .on("mouseover", function() { tooltip.style("opacity", 1); d3.select(this).attr("r", 8).attr("fill", mainColor); })
         .on("mousemove", function(event, d) {
-            tooltip.html(`<strong style="color:#10b981">Ponto ${d.id}</strong><br/>T: ${d.T.toFixed(2)} °C<br/>s: ${d.s.toFixed(4)}`)
+            tooltip.html(`<strong style="color:${mainColor}">Ponto ${d.id}</strong><br/>T: ${d.T.toFixed(2)} °C<br/>s: ${d.s.toFixed(4)}`)
                    .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px");
         })
         .on("mouseleave", function() { tooltip.style("opacity", 0); d3.select(this).attr("r", 5).attr("fill", "var(--bg)"); });
 
-    // Textos interativos (SOMENTE 1, 2, 3 e 4)
     g.selectAll(".cycle-labels").data(pontos).enter().append("text")
       .attr("x", d => x(d.s) + (d.id === 2 || d.id === 3 ? -15 : 10)).attr("y", d => y(d.T) - 8)
-      .text(d => d.id).style("fill", "#10b981").style("font-family", "var(--font-mono)").style("font-weight", "bold");
+      .text(d => d.id).style("fill", mainColor).style("font-family", "var(--font-mono)").style("font-weight", "bold");
 
     const getSat = (T_val) => satT.find(r => r[0] >= T_val) || satT[satT.length-1];
     const ptHighR = getSat(300); const ptLowR = getSat(50);
@@ -102,7 +102,7 @@ export default function RankineChart({ pontos, satCaldeira }) {
         { s: ptHighC[6], T: 250 }, { s: ptHighC[7], T: 250 }
     ], "#f59e0b");
 
-  }, [pontos, domeData, satCaldeira]);
+  }, [pontos, domeData, satCaldeira, cycleColor]);
 
   return (
     <div style={{ width: '100%' }}>
@@ -114,7 +114,7 @@ export default function RankineChart({ pontos, satCaldeira }) {
       </div>
       <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text3)', marginTop: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '20px', height: '2px', borderBottom: '2px dashed #64748b' }}></span> Cúpula</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></span> Seu Ciclo Rankine</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: cycleColor || '#10b981' }}></span> Seu Ciclo Rankine</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', opacity: 0.4 }}></span> Ref. Rankine</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b', opacity: 0.4 }}></span> Ref. Carnot</div>
       </div>

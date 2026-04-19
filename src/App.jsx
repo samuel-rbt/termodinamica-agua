@@ -15,7 +15,6 @@ function getSatPropsByP(p_kpa) {
   const p_bar = p_kpa / 100;
   let idx = satP.findIndex(row => row[0] >= p_bar);
   
-  // Ordem correta das travas de limite
   if (idx === -1) idx = satP.length - 1;
   if (idx === 0) idx = 1;
   
@@ -34,7 +33,6 @@ function getSatPropsByP(p_kpa) {
 
 function getSupPropsByPS(p_kpa, s_target) {
   const p_bar = p_kpa / 100;
-  // Mantemos as chaves como strings para evitar o bug de ponto flutuante do JS
   const keys = Object.keys(supData);
   const closestKeyStr = keys.reduce((prevStr, currStr) => {
     return Math.abs(parseFloat(currStr) - p_bar) < Math.abs(parseFloat(prevStr) - p_bar) ? currStr : prevStr;
@@ -44,7 +42,6 @@ function getSupPropsByPS(p_kpa, s_target) {
 
   let idx = table.findIndex(r => r[3] >= s_target);
   
-  // Ordem correta das travas de limite
   if (idx === -1) idx = table.length - 1;
   if (idx === 0) idx = 1;
 
@@ -73,26 +70,26 @@ export default function App() {
     try {
       const p_kpa = parseFloat(inputP);
       const t_c = parseFloat(inputT);
-      const p_cond_kpa = 10; // Condensador fixo em 10 kPa
+      const p_cond_kpa = 10; // Condensador fixo (Pressão de vácuo padrão da indústria)
 
       const satCaldeira = getSatPropsByP(p_kpa);
       const satCondensador = getSatPropsByP(p_cond_kpa);
 
       let estado = ""; 
       let h1, s1;
+      let corEstado = ""; // Variável dinâmica para a cor do ciclo
 
-      // --- PONTO 1: CALDEIRA ---
+      // --- PONTO 1: AVALIAÇÃO DO ESTADO TERMODINÂMICO ---
       if (t_c > satCaldeira.T + 0.1) {
         estado = "VAPOR SUPERAQUECIDO";
+        corEstado = "#ef4444"; // Vermelho (Gás quente de alta energia)
+        
         const p_bar = p_kpa / 100;
         const keys = Object.keys(supData);
-        // Proteção contra dízimas periódicas no JS
         const closestKeyStr = keys.reduce((prev, curr) => Math.abs(parseFloat(curr) - p_bar) < Math.abs(parseFloat(prev) - p_bar) ? curr : prev);
         const table = supData[closestKeyStr].rows;
         
         let idx = table.findIndex(r => r[0] >= t_c);
-        
-        // Ordem correta das travas de limite
         if (idx === -1) idx = table.length - 1;
         if (idx === 0) idx = 1;
         
@@ -100,27 +97,28 @@ export default function App() {
         s1 = interp(table[idx-1][0], table[idx-1][3], table[idx][0], table[idx][3], t_c);
       } else if (t_c < satCaldeira.T - 0.1) {
         estado = "LÍQUIDO COMPRIMIDO";
+        corEstado = "#10b981"; // Verde (Líquido seguro)
+        
         h1 = satCaldeira.hf; s1 = satCaldeira.sf;
       } else {
         estado = "MISTURA SATURADA";
+        corEstado = "#f59e0b"; // Laranja/Amarelo (Fase de ebulição)
+        
         h1 = satCaldeira.hg; s1 = satCaldeira.sg;
       }
 
       const p1 = { id: 1, T: t_c, h: h1, s: s1 };
 
-      // --- PONTO 2: TURBINA (Expansão Isentrópica s2 = s1) ---
+      // --- PONTO 2: TURBINA (Expansão Isentrópica) ---
       let h2, t2;
       if (s1 > satCondensador.sg) {
-         // Caso 2: Vapor superaquecido na saída
          const propsSuper = getSupPropsByPS(p_cond_kpa, s1);
          h2 = propsSuper.h;
          t2 = propsSuper.T;
       } else if (s1 < satCondensador.sf) {
-         // Caso 3: Líquido comprimido na saída
          h2 = satCondensador.hf;
          t2 = satCondensador.T;
       } else {
-         // Caso 1: Mistura Saturada (Normal)
          const x2 = (s1 - satCondensador.sf) / (satCondensador.sg - satCondensador.sf);
          h2 = satCondensador.hf + x2 * (satCondensador.hg - satCondensador.hf);
          t2 = satCondensador.T;
@@ -132,7 +130,7 @@ export default function App() {
       
       const w_bomba = p3.v * (p_kpa - p_cond_kpa);
       const h4 = p3.h + w_bomba;
-      const deltaT_bomba = w_bomba / 4.184; // Cp da água ~= 4.184 kJ/kgK
+      const deltaT_bomba = w_bomba / 4.184; 
       const p4 = { id: 4, T: p3.T + deltaT_bomba, h: h4, s: p3.s };
 
       // --- BALANÇO DE ENERGIA ---
@@ -141,20 +139,17 @@ export default function App() {
       const Qin = p1.h - p4.h;
       const eta = Qin > 0 ? (Wt - Wb) / Qin : 0;
 
-      // --- TABELA VAN WYLEN (Injeção de Ponto Dinâmico) ---
+      // --- TABELA VAN WYLEN ---
       let baseT = satT.filter(row => row[0] % 10 === 0 || row[0] === 0.01).map(r => r[0]);
       if (!baseT.includes(t_c) && t_c >= 0.01 && t_c <= 374.14) baseT.push(t_c);
       baseT.sort((a, b) => a - b);
 
       const tabela = baseT.map(t_val => {
           let idx = satT.findIndex(r => r[0] >= t_val);
-          
-          // Ordem correta das travas de limite
           if (idx === -1) idx = satT.length - 1;
           if (idx === 0) idx = 1;
           
           const r0 = satT[idx-1]; const r1 = satT[idx];
-          
           const pBar = interp(r0[0], r0[1], r1[0], r1[1], t_val);
           const vl = interp(r0[0], r0[2], r1[0], r1[2], t_val);
           const vv = interp(r0[0], r0[3], r1[0], r1[3], t_val);
@@ -173,11 +168,11 @@ export default function App() {
       setData({
           pontos: [p1, p2, p3, p4],
           satCaldeira: satCaldeira,
-          estado, Tsat: satCaldeira.T, tabela,
+          estado, corEstado, Tsat: satCaldeira.T, tabela,
           formulas: { Wt, Wb, Qin, eta }
       });
     } catch (err) {
-      console.error(err); // <-- Deixei isso aqui. Se algum dia der erro, aperte F12 e olhe o console do navegador que ele te dedura o que foi!
+      console.error(err);
       setError("Erro matemático: Os parâmetros fornecidos excedem os limites das tabelas termodinâmicas.");
     }
   }, [inputP, inputT]);
@@ -217,8 +212,8 @@ export default function App() {
         
         {data && (
           <>
-            <div className={styles.memorialContainer} style={{ borderLeftColor: 'var(--accent)' }}>
-              <h3 style={{ color: 'var(--accent)', margin: '0 0 10px 0', fontSize: '15px', fontFamily: 'var(--font-mono)' }}>
+            <div className={styles.memorialContainer} style={{ borderLeftColor: data.corEstado }}>
+              <h3 style={{ color: data.corEstado, margin: '0 0 10px 0', fontSize: '15px', fontFamily: 'var(--font-mono)' }}>
                 STATUS: {data.estado}
               </h3>
               <div className={styles.statusHighlight}>
@@ -228,14 +223,14 @@ export default function App() {
               </div>
               
               <div className={styles.memorialText} style={{marginTop: '20px', background: 'var(--bg2)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)'}}>
-                <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '10px', fontFamily: 'var(--font-mono)'}}>MEMORIAL DE CÁLCULO E ANÁLISE DO CICLO (Motor React/JS):</strong>
+                <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '10px', fontFamily: 'var(--font-mono)'}}>MEMORIAL DE CÁLCULO E ANÁLISE DO CICLO:</strong>
                 
-                <div className={styles.memorialLine} style={{ color: 'var(--accent)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '10px' }}>[PARÂMETROS DE ENTRADA]</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>P_caldeira = {inputP} kPa</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>T_caldeira = {inputT} °C</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>P_condensador = 10 kPa</div>
+                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '10px' }}>[PARÂMETROS DE ENTRADA]</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Pressão (P₁) = {inputP} kPa</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Temperatura (T₁) = {inputT} °C</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Pressão do Condensador (P₂, fixa) = 10 kPa</div>
                 
-                <div className={styles.memorialLine} style={{ color: 'var(--accent)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[FÓRMULAS E BALANÇO DE ENERGIA]</div>
+                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[FÓRMULAS E BALANÇO DE ENERGIA]</div>
                 <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '3px' }}>➤ Trabalho da Turbina (Wt):</div>
                 <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Wt = h₁ - h₂ = {data.pontos[0].h.toFixed(2)} - {data.pontos[1].h.toFixed(2)} = {data.formulas.Wt.toFixed(2)} kJ/kg</div>
                 
@@ -251,7 +246,8 @@ export default function App() {
             </div>
 
             <div className={styles.resultCard} style={{ padding: '1rem', overflow: 'hidden', marginTop: '20px' }}>
-              <RankineChart pontos={data.pontos} satCaldeira={data.satCaldeira} />
+              {/* Passando a cor dinâmica para o Gráfico renderizar a linha correta */}
+              <RankineChart pontos={data.pontos} satCaldeira={data.satCaldeira} cycleColor={data.corEstado} />
             </div>
 
             <div className={styles.resultCard} style={{ marginTop: '20px', overflow: 'hidden' }}>
