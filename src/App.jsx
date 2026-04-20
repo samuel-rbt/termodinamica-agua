@@ -1,11 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import RankineChart from './RankineChart';
 import { satT, satP, supData } from './data';
 import styles from './App.module.css';
 
-// ============================================================================
-// ⚙️ ENGINE TERMODINÂMICO "MINI-COOLPROP" (100% JS)
-// ============================================================================
 const TermoEngine = {
   interp: (x0, y0, x1, y1, x) => {
     if (x0 === x1) return y0;
@@ -31,6 +28,18 @@ const TermoEngine = {
     };
   },
 
+  getSatT: (t_c) => {
+    let idx = satT.findIndex(row => row[0] >= t_c);
+    if (idx === -1) idx = satT.length - 1;
+    if (idx === 0) idx = 1;
+    
+    const r0 = satT[idx - 1]; const r1 = satT[idx];
+    return {
+      T: t_c,
+      P: TermoEngine.interp(r0[0], r0[1], r1[0], r1[1], t_c) * 100 
+    };
+  },
+
   getSupPT: (p_kpa, t_c) => {
     const p_bar = p_kpa / 100;
     const keys = Object.keys(supData);
@@ -43,6 +52,7 @@ const TermoEngine = {
 
     const r0 = table[idx-1]; const r1 = table[idx];
     return {
+      v: TermoEngine.interp(r0[0], r0[1], r1[0], r1[1], t_c),
       h: TermoEngine.interp(r0[0], r0[2], r1[0], r1[2], t_c),
       s: TermoEngine.interp(r0[0], r0[3], r1[0], r1[3], t_c)
     };
@@ -66,74 +76,65 @@ const TermoEngine = {
   }
 };
 
-// ============================================================================
-// 🖥️ COMPONENTE INTERFACE (REACT REATIVO)
-// ============================================================================
 export default function App() {
-  // Estados iniciais da usina (Substitui o click do botão buscar)
-  const [inputP, setInputP] = useState('2000');
-  const [inputT, setInputT] = useState('350');
-  const [inputPCond, setInputPCond] = useState('10');
+  const [inputP, setInputP] = useState('4000');
+  const [inputT, setInputT] = useState('400');
+  const [pBaixa, setPBaixa] = useState(10);
   
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
-  // Hook Reativo: O Motor recálcula sozinho sempre que qualquer número ou clique de arrastar acontecer
-  useEffect(() => {
-    const p_kpa = parseFloat(inputP);
-    const t_c = parseFloat(inputT);
-    const p_cond_kpa = parseFloat(inputPCond);
+  // Controlador de Throttling (Acelerador) para a tabela não explodir
+  const lastDragTime = useRef(0);
 
-    if (isNaN(p_kpa) || isNaN(t_c) || isNaN(p_cond_kpa)) return;
-
+  const calcularTermodinamica = useCallback((p_kpa, t_c, p_cond_kpa) => {
     try {
-      const satCaldeira = TermoEngine.getSatP(p_kpa);
-      const satCondensador = TermoEngine.getSatP(p_cond_kpa);
+      const satAlta = TermoEngine.getSatP(p_kpa);
+      const satBaixa = TermoEngine.getSatP(p_cond_kpa);
 
-      let estado = ""; let corEstado = ""; let h1, s1;
+      let estado = ""; let corEstado = ""; 
+      let h1, s1, v1;
 
-      // 1. PONTO 1 (ENTRADA DA TURBINA)
-      if (t_c > satCaldeira.T + 0.1) {
+      if (t_c > satAlta.T + 0.1) {
         estado = "VAPOR SUPERAQUECIDO"; corEstado = "#ef4444"; 
         const props = TermoEngine.getSupPT(p_kpa, t_c);
-        h1 = props.h; s1 = props.s;
-      } else if (t_c < satCaldeira.T - 0.1) {
+        h1 = props.h; s1 = props.s; v1 = props.v;
+      } else if (t_c < satAlta.T - 0.1) {
         estado = "LÍQUIDO COMPRIMIDO"; corEstado = "#10b981"; 
-        h1 = satCaldeira.hf; s1 = satCaldeira.sf;
+        h1 = satAlta.hf; s1 = satAlta.sf; v1 = satAlta.vf;
       } else {
         estado = "MISTURA SATURADA"; corEstado = "#f59e0b"; 
-        h1 = satCaldeira.hg; s1 = satCaldeira.sg;
+        h1 = satAlta.hg; s1 = satAlta.sg; v1 = satAlta.vg;
       }
-      const p1 = { id: 1, T: t_c, h: h1, s: s1 };
+      
+      const u1 = h1 - (p_kpa * v1);
+      const p1 = { id: 1, T: t_c, h: h1, s: s1, u: u1 };
 
-      // 2. PONTO 2 (SAÍDA DA TURBINA - ISENTRÓPICA s2 = s1)
       let h2, t2, titulo_x2 = null;
-      if (s1 > satCondensador.sg) {
+      if (s1 > satBaixa.sg) {
          const propsSuper = TermoEngine.getSupPS(p_cond_kpa, s1);
          h2 = propsSuper.h; t2 = propsSuper.T;
-      } else if (s1 < satCondensador.sf) {
-         h2 = satCondensador.hf; t2 = satCondensador.T;
+      } else if (s1 < satBaixa.sf) {
+         h2 = satBaixa.hf; t2 = satBaixa.T;
       } else {
-         titulo_x2 = (s1 - satCondensador.sf) / (satCondensador.sg - satCondensador.sf);
-         h2 = satCondensador.hf + titulo_x2 * (satCondensador.hg - satCondensador.hf);
-         t2 = satCondensador.T;
+         titulo_x2 = (s1 - satBaixa.sf) / (satBaixa.sg - satBaixa.sf);
+         h2 = satBaixa.hf + titulo_x2 * (satBaixa.hg - satBaixa.hf);
+         t2 = satBaixa.T;
       }
       const p2 = { id: 2, T: t2, h: h2, s: s1 };
 
-      // 3. PONTOS 3 E 4 (CONDENSADOR E BOMBA)
-      const p3 = { id: 3, T: satCondensador.T, h: satCondensador.hf, s: satCondensador.sf, v: satCondensador.vf };
+      const p3 = { id: 3, T: satBaixa.T, h: satBaixa.hf, s: satBaixa.sf, v: satBaixa.vf };
       const w_bomba = p3.v * (p_kpa - p_cond_kpa); 
       const h4 = p3.h + w_bomba;
       const deltaT_bomba = w_bomba / 4.184; 
       const p4 = { id: 4, T: p3.T + deltaT_bomba, h: h4, s: p3.s };
 
-      // BALANÇO DE ENERGIA E EFICIÊNCIA DO SISTEMA
       const Wt = p1.h - p2.h;
+      const ql = p2.h - p3.h;
       const Wb = p4.h - p3.h;
-      const Qin = p1.h - p4.h;
-      const eta = Qin > 0 ? (Wt - Wb) / Qin : 0;
+      const qh = p1.h - p4.h;
+      const eta = qh > 0 ? (Wt - Wb) / qh : 0;
 
-      // TABELA VAN WYLEN 
       let baseT = satT.filter(row => row[0] % 10 === 0 || row[0] === 0.01).map(r => r[0]);
       if (!baseT.includes(t_c) && t_c >= 0.01 && t_c <= 374.14) baseT.push(t_c);
       baseT.sort((a, b) => a - b);
@@ -161,28 +162,41 @@ export default function App() {
 
       setData({
           pontos: [p1, p2, p3, p4],
-          satCaldeira: satCaldeira,
-          estado, corEstado, Tsat: satCaldeira.T, tabela,
-          formulas: { Wt, Wb, Qin, eta, x2: titulo_x2 }
+          satAlta: satAlta,
+          satBaixa: satBaixa,
+          estado, corEstado, Tsat: satAlta.T, tabela,
+          formulas: { Wt, ql, Wb, qh, eta, x2: titulo_x2 }
       });
       setError(null);
     } catch (err) {
-      setError("Os parâmetros excedem a base termodinâmica de segurança.");
+      setError("Os parâmetros excedem a base termodinâmica segura.");
     }
-  }, [inputP, inputT, inputPCond]);
+  }, []);
 
-  // Função disparada quando o usuário arrasta o mouse no gráfico
-  const handleDragNode = useCallback((type, novaTemp) => {
-    if (type === 'T_caldeira') {
-        setInputT(novaTemp.toFixed(1));
-    } else if (type === 'T_condensador') {
-        let idx = satT.findIndex(r => r[0] >= novaTemp);
-        if (idx === -1) idx = satT.length - 1;
-        if (idx === 0) idx = 1;
-        const r0 = satT[idx-1]; const r1 = satT[idx];
-        const pBar = TermoEngine.interp(r0[0], r0[1], r1[0], r1[1], novaTemp);
-        setInputPCond(Math.max(0.611, pBar * 100).toFixed(1)); // Limite mínimo do ponto triplo
-    }
+  useEffect(() => {
+    calcularTermodinamica(parseFloat(inputP), parseFloat(inputT), pBaixa);
+  }, [inputP, inputT, pBaixa, calcularTermodinamica]);
+
+  // Esta função é chamada ENQUANTO você arrasta, mas com um freio de segurança (50ms)
+  const handleGraphDrag = useCallback((novaTAlta, novaTBaixa) => {
+      const now = Date.now();
+      if (now - lastDragTime.current > 50) { // Limita a ~20 atualizações por segundo
+          if (novaTAlta) setInputT(novaTAlta.toFixed(1));
+          if (novaTBaixa) {
+              const novaP = TermoEngine.getSatT(novaTBaixa).P;
+              setPBaixa(novaP); 
+          }
+          lastDragTime.current = now;
+      }
+  }, []);
+
+  // Esta garante que o último milissegundo do arrasto crave o número exato
+  const handleGraphDrop = useCallback((novaTAlta, novaTBaixa) => {
+      if (novaTAlta) setInputT(novaTAlta.toFixed(1));
+      if (novaTBaixa) {
+          const novaP = TermoEngine.getSatT(novaTBaixa).P;
+          setPBaixa(novaP);
+      }
   }, []);
 
   return (
@@ -198,7 +212,7 @@ export default function App() {
           </div>
         </div>
         <div style={{ background: 'var(--accent)', color: 'white', padding: '5px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>
-            🖱️ DICA: Arraste as bolinhas no gráfico abaixo com o rato para explorar o ciclo!
+            🖱️ DICA: Arraste os pontos no gráfico para ajustar as temperaturas livremente!
         </div>
       </header>
 
@@ -216,46 +230,74 @@ export default function App() {
               <input type="number" step="0.1" value={inputT} onChange={e => setInputT(e.target.value)} />
             </div>
           </div>
-          <div className={styles.searchGroup}>
-            <label className={styles.searchLabel}>P. CONDENSADOR (kPa)</label>
-            <div className={styles.searchInput}>
-              <input type="number" step="0.1" value={inputPCond} onChange={e => setInputPCond(e.target.value)} />
-            </div>
-          </div>
         </div>
         
         {error && <div className={`${styles.resultCard} ${styles.resultError}`}><p className={styles.errorMsg}>{error}</p></div>}
         
         {data && (
           <>
-            {/* NOVO: DESTAQUE PARA A EFICIÊNCIA TÉRMICA */}
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-                <div className={styles.resultCard} style={{ flex: 1, padding: '20px', borderLeft: `6px solid ${data.corEstado}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <h3 style={{ color: data.corEstado, margin: '0 0 5px 0', fontSize: '15px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>ESTADO: {data.estado}</h3>
-                    <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                        <div><strong>h₁:</strong> {data.pontos[0].h.toFixed(2)} kJ/kg</div>
-                        <div><strong>s₁:</strong> {data.pontos[0].s.toFixed(4)} kJ/kg·K</div>
+            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <div className={styles.resultCard} style={{ flex: 1, padding: '20px', borderLeft: `6px solid ${data.corEstado}`, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: '300px' }}>
+                    <h3 style={{ color: data.corEstado, margin: '0 0 10px 0', fontSize: '15px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>ESTADO: {data.estado}</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', fontFamily: 'var(--font-mono)' }}>
+                        <div><strong>Energia Interna (u₁):</strong> {data.pontos[0].u.toFixed(2)} kJ/kg</div>
+                        <div><strong>Entalpia (h₁):</strong> {data.pontos[0].h.toFixed(2)} kJ/kg</div>
+                        <div><strong>Entropia (s₁):</strong> {data.pontos[0].s.toFixed(4)} kJ/kg·K</div>
                     </div>
                 </div>
-                <div className={styles.resultCard} style={{ flex: 1, padding: '20px', background: 'var(--bg2)', border: '1px solid var(--border)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div className={styles.resultCard} style={{ flex: 1, padding: '20px', background: 'var(--bg2)', border: '1px solid var(--border)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: '300px' }}>
                     <div style={{ fontSize: '13px', color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>RENDIMENTO TÉRMICO DO SISTEMA (η)</div>
                     <div style={{ fontSize: '32px', color: 'var(--accent)', fontWeight: 'bold', fontFamily: 'var(--font-sans)' }}>{(data.formulas.eta * 100).toFixed(2)} %</div>
                 </div>
             </div>
 
             <div className={styles.resultCard} style={{ padding: '1rem', overflow: 'hidden', marginBottom: '20px' }}>
-              <RankineChart pontos={data.pontos} satCaldeira={data.satCaldeira} cycleColor={data.corEstado} onDragNode={handleDragNode} />
+              <RankineChart 
+                pontos={data.pontos} 
+                satAlta={data.satAlta} 
+                satBaixa={data.satBaixa}
+                cycleColor={data.corEstado} 
+                onGraphDrag={handleGraphDrag}
+                onGraphDrop={handleGraphDrop} 
+              />
             </div>
 
-            <div className={styles.memorialContainer} style={{ borderLeftColor: 'var(--text2)' }}>
+            <div className={styles.memorialContainer} style={{ borderLeftColor: data.corEstado }}>
               <div className={styles.memorialText} style={{ padding: '15px', borderRadius: '8px' }}>
-                <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '10px', fontFamily: 'var(--font-mono)'}}>MEMORIAL DE CÁLCULO FÍSICO:</strong>
+                <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '15px', fontFamily: 'var(--font-mono)'}}>MEMORIAL DE CÁLCULO E ANÁLISE DO CICLO:</strong>
+                
+                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '10px' }}>[PARÂMETROS DE ENTRADA]</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Pressão (P₁) = {inputP} kPa</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Temperatura (T₁) = {inputT} °C</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Pressão de Saída (P₂) = {pBaixa.toFixed(2)} kPa</div>
+                
+                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[ESTADO TERMODINÂMICO]</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Tsat(P₁) = {data.Tsat.toFixed(2)} °C</div>
+                {data.formulas.x2 !== null && (
+                    <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Título do Vapor (x₂) = {data.formulas.x2.toFixed(4)}</div>
+                )}
+                
+                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[ENTALPIAS ENCONTRADAS]</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₁ = {data.pontos[0].h.toFixed(2)} kJ/kg (P₁, T₁)</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₂ = {data.pontos[1].h.toFixed(2)} kJ/kg (P₂, s₂=s₁)</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₃ = {data.pontos[2].h.toFixed(2)} kJ/kg (P₂, Líq. Saturado)</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₄ = {data.pontos[3].h.toFixed(2)} kJ/kg (P₁, s₄=s₃)</div>
+
+                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[FÓRMULAS E BALANÇO DE ENERGIA]</div>
                 <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '3px' }}>➤ Trabalho da Turbina (Wt):</div>
                 <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Wt = h₁ - h₂ = {data.pontos[0].h.toFixed(2)} - {data.pontos[1].h.toFixed(2)} = <strong>{data.formulas.Wt.toFixed(2)} kJ/kg</strong></div>
+                
+                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Calor Rejeitado (ql):</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>ql = h₂ - h₃ = {data.pontos[1].h.toFixed(2)} - {data.pontos[2].h.toFixed(2)} = <strong>{data.formulas.ql.toFixed(2)} kJ/kg</strong></div>
+
                 <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Trabalho da Bomba (Wb):</div>
                 <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Wb = h₄ - h₃ = {data.pontos[3].h.toFixed(2)} - {data.pontos[2].h.toFixed(2)} = <strong>{data.formulas.Wb.toFixed(2)} kJ/kg</strong></div>
-                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Calor Fornecido na Caldeira (qh):</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>qh = h₁ - h₄ = {data.pontos[0].h.toFixed(2)} - {data.pontos[3].h.toFixed(2)} = <strong>{data.formulas.Qin.toFixed(2)} kJ/kg</strong></div>
+                
+                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Calor Fornecido (qh):</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>qh = h₁ - h₄ = {data.pontos[0].h.toFixed(2)} - {data.pontos[3].h.toFixed(2)} = <strong>{data.formulas.qh.toFixed(2)} kJ/kg</strong></div>
+                
+                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Rendimento Térmico (η):</div>
+                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>η = (Wt - Wb) / qh = ({data.formulas.Wt.toFixed(2)} - {data.formulas.Wb.toFixed(2)}) / {data.formulas.qh.toFixed(2)} = <strong>{(data.formulas.eta*100).toFixed(2)}%</strong></div>
               </div>
             </div>
 
