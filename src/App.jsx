@@ -206,8 +206,8 @@ export default function App() {
           <div className={styles.logo}>
              <span className={styles.logoIcon}>H₂O</span>
              <div>
-                <div className={styles.logoTitle}>Simulador Termodinâmico</div>
-                <div className={styles.logoSub}>Gráfico Interativo em Tempo Real</div>
+                <div className={styles.logoTitle}>Tabelas Termodinâmicas</div>
+                <div className={styles.logoSub}>Propriedas da Água e Vapor</div>
              </div>
           </div>
         </div>
