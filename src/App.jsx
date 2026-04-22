@@ -3,6 +3,9 @@ import RankineChart from './RankineChart';
 import { satT, satP, supData } from './data';
 import styles from './App.module.css';
 
+// ============================================================================
+// ⚙️ ENGINE TERMODINÂMICO "MINI-COOLPROP" (100% JS)
+// ============================================================================
 const TermoEngine = {
   interp: (x0, y0, x1, y1, x) => {
     if (x0 === x1) return y0;
@@ -84,7 +87,6 @@ export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
-  // Controlador de Throttling (Acelerador) para a tabela não explodir
   const lastDragTime = useRef(0);
 
   const calcularTermodinamica = useCallback((p_kpa, t_c, p_cond_kpa) => {
@@ -177,10 +179,9 @@ export default function App() {
     calcularTermodinamica(parseFloat(inputP), parseFloat(inputT), pBaixa);
   }, [inputP, inputT, pBaixa, calcularTermodinamica]);
 
-  // Esta função é chamada ENQUANTO você arrasta, mas com um freio de segurança (50ms)
   const handleGraphDrag = useCallback((novaTAlta, novaTBaixa) => {
       const now = Date.now();
-      if (now - lastDragTime.current > 50) { // Limita a ~20 atualizações por segundo
+      if (now - lastDragTime.current > 50) { 
           if (novaTAlta) setInputT(novaTAlta.toFixed(1));
           if (novaTBaixa) {
               const novaP = TermoEngine.getSatT(novaTBaixa).P;
@@ -190,7 +191,6 @@ export default function App() {
       }
   }, []);
 
-  // Esta garante que o último milissegundo do arrasto crave o número exato
   const handleGraphDrop = useCallback((novaTAlta, novaTBaixa) => {
       if (novaTAlta) setInputT(novaTAlta.toFixed(1));
       if (novaTBaixa) {
@@ -211,13 +211,11 @@ export default function App() {
              </div>
           </div>
         </div>
-        <div style={{ background: 'var(--accent)', color: 'white', padding: '5px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>
-            🖱️ DICA: Arraste os pontos no gráfico para ajustar as temperaturas livremente!
-        </div>
       </header>
 
       <main className={styles.main} style={{ flex: 1 }}>
         <div className={styles.searchBar}>
+          {/* APENAS DOIS INPUTS COMO EXIGIDO */}
           <div className={styles.searchGroup}>
             <label className={styles.searchLabel}>PRESSÃO (kPa)</label>
             <div className={styles.searchInput}>
@@ -262,42 +260,78 @@ export default function App() {
               />
             </div>
 
-            <div className={styles.memorialContainer} style={{ borderLeftColor: data.corEstado }}>
-              <div className={styles.memorialText} style={{ padding: '15px', borderRadius: '8px' }}>
-                <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '15px', fontFamily: 'var(--font-mono)'}}>MEMORIAL DE CÁLCULO E ANÁLISE DO CICLO:</strong>
+            {/* RELATÓRIO TÉCNICO COMPLETO - GERADO AUTOMATICAMENTE */}
+            <div className={styles.resultCard} style={{ padding: '25px', marginBottom: '20px', borderTop: `4px solid ${data.corEstado}` }}>
+              <h2 style={{ margin: '0 0 20px 0', color: 'var(--text)', fontSize: '18px', fontFamily: 'var(--font-mono)', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                📄 RELATÓRIO TÉCNICO: ANÁLISE DO CICLO DE RANKINE
+              </h2>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text2)', lineHeight: '1.6' }}>
                 
-                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '10px' }}>[PARÂMETROS DE ENTRADA]</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Pressão (P₁) = {inputP} kPa</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Temperatura (T₁) = {inputT} °C</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Pressão de Saída (P₂) = {pBaixa.toFixed(2)} kPa</div>
-                
-                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[ESTADO TERMODINÂMICO]</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Tsat(P₁) = {data.Tsat.toFixed(2)} °C</div>
-                {data.formulas.x2 !== null && (
-                    <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Título do Vapor (x₂) = {data.formulas.x2.toFixed(4)}</div>
-                )}
-                
-                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[ENTALPIAS ENCONTRADAS]</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₁ = {data.pontos[0].h.toFixed(2)} kJ/kg (P₁, T₁)</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₂ = {data.pontos[1].h.toFixed(2)} kJ/kg (P₂, s₂=s₁)</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₃ = {data.pontos[2].h.toFixed(2)} kJ/kg (P₂, Líq. Saturado)</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>h₄ = {data.pontos[3].h.toFixed(2)} kJ/kg (P₁, s₄=s₃)</div>
+                {/* Coluna 1: Condições e Balanço */}
+                <div style={{ background: 'var(--bg)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ color: data.corEstado, marginTop: 0, marginBottom: '10px' }}>📌 CONDIÇÕES INICIAIS</h4>
+                    <div>Pressão de Entrada: <strong>{inputP} kPa</strong></div>
+                    <div>Temperatura de Entrada: <strong>{inputT} °C</strong></div>
+                    <div>Pressão de Saída (Fixada): <strong>{pBaixa.toFixed(2)} kPa</strong></div>
+                    <div style={{ marginTop: '10px' }}>O fluido de trabalho encontra-se no estado de <strong>{data.estado.toLowerCase()}</strong> na entrada do processo de expansão.</div>
 
-                <div className={styles.memorialLine} style={{ color: data.corEstado, fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '15px' }}>[FÓRMULAS E BALANÇO DE ENERGIA]</div>
-                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '3px' }}>➤ Trabalho da Turbina (Wt):</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Wt = h₁ - h₂ = {data.pontos[0].h.toFixed(2)} - {data.pontos[1].h.toFixed(2)} = <strong>{data.formulas.Wt.toFixed(2)} kJ/kg</strong></div>
-                
-                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Calor Rejeitado (ql):</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>ql = h₂ - h₃ = {data.pontos[1].h.toFixed(2)} - {data.pontos[2].h.toFixed(2)} = <strong>{data.formulas.ql.toFixed(2)} kJ/kg</strong></div>
+                    <h4 style={{ color: data.corEstado, marginTop: '20px', marginBottom: '10px' }}>📊 BALANÇO DE ENERGIA</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border2)', paddingBottom: '5px', marginBottom: '5px' }}>
+                        <span>Trabalho da Turbina (Wt):</span> <strong>{data.formulas.Wt.toFixed(2)} kJ/kg</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border2)', paddingBottom: '5px', marginBottom: '5px' }}>
+                        <span>Calor Rejeitado (ql):</span> <strong>{data.formulas.ql.toFixed(2)} kJ/kg</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border2)', paddingBottom: '5px', marginBottom: '5px' }}>
+                        <span>Trabalho da Bomba (Wb):</span> <strong>{data.formulas.Wb.toFixed(2)} kJ/kg</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border2)', paddingBottom: '5px', marginBottom: '5px' }}>
+                        <span>Calor Fornecido (qh):</span> <strong>{data.formulas.qh.toFixed(2)} kJ/kg</strong>
+                    </div>
+                </div>
 
-                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Trabalho da Bomba (Wb):</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>Wb = h₄ - h₃ = {data.pontos[3].h.toFixed(2)} - {data.pontos[2].h.toFixed(2)} = <strong>{data.formulas.Wb.toFixed(2)} kJ/kg</strong></div>
-                
-                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Calor Fornecido (qh):</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>qh = h₁ - h₄ = {data.pontos[0].h.toFixed(2)} - {data.pontos[3].h.toFixed(2)} = <strong>{data.formulas.qh.toFixed(2)} kJ/kg</strong></div>
-                
-                <div className={styles.memorialLine} style={{ color: 'var(--text)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>➤ Rendimento Térmico (η):</div>
-                <div className={styles.memorialLine} style={{ marginLeft: '15px', fontFamily: 'var(--font-mono)'}}>η = (Wt - Wb) / qh = ({data.formulas.Wt.toFixed(2)} - {data.formulas.Wb.toFixed(2)}) / {data.formulas.qh.toFixed(2)} = <strong>{(data.formulas.eta*100).toFixed(2)}%</strong></div>
+                {/* Coluna 2: Análise Passo a Passo */}
+                <div style={{ background: 'var(--bg)', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ color: data.corEstado, marginTop: 0, marginBottom: '10px' }}>🔄 PROCESSO PONTO A PONTO</h4>
+                    
+                    <div style={{ marginBottom: '12px' }}>
+                        <strong style={{ color: 'var(--text)' }}>🔵 PONTO 1 (ENTRADA DA TURBINA)</strong><br/>
+                        h₁ = {data.pontos[0].h.toFixed(2)} kJ/kg | s₁ = {data.pontos[0].s.toFixed(4)}<br/>
+                        Fluido sai do gerador de vapor (caldeira) e entra na turbina.
+                    </div>
+                    
+                    <div style={{ color: 'var(--accent)', marginLeft: '10px', borderLeft: '2px solid var(--border2)', paddingLeft: '10px', marginBottom: '12px' }}>
+                        <em>Processo 1 → 2: Expansão isentrópica na turbina, convertendo a energia térmica em trabalho mecânico.</em>
+                    </div>
+
+                    <div style={{ marginBottom: '12px' }}>
+                        <strong style={{ color: 'var(--text)' }}>🔵 PONTO 2 (SAÍDA DA TURBINA)</strong><br/>
+                        h₂ = {data.pontos[1].h.toFixed(2)} kJ/kg | s₂ = {data.pontos[1].s.toFixed(4)}<br/>
+                        {data.formulas.x2 !== null ? `A expansão gerou vapor úmido com título de ${(data.formulas.x2 * 100).toFixed(1)}%.` : 'O fluido exaurido ainda permanece na fase de vapor superaquecido.'}
+                    </div>
+
+                    <div style={{ color: 'var(--accent)', marginLeft: '10px', borderLeft: '2px solid var(--border2)', paddingLeft: '10px', marginBottom: '12px' }}>
+                        <em>Processo 2 → 3: Rejeição de calor isobárica no condensador para o meio ambiente.</em>
+                    </div>
+
+                    <div style={{ marginBottom: '12px' }}>
+                        <strong style={{ color: 'var(--text)' }}>🔵 PONTO 3 (SAÍDA DO CONDENSADOR)</strong><br/>
+                        h₃ = {data.pontos[2].h.toFixed(2)} kJ/kg<br/>
+                        Fluido atinge o estado de líquido saturado, pronto para ser bombeado.
+                    </div>
+
+                    <div style={{ color: 'var(--accent)', marginLeft: '10px', borderLeft: '2px solid var(--border2)', paddingLeft: '10px', marginBottom: '12px' }}>
+                        <em>Processo 3 → 4: Bombeamento isentrópico.</em>
+                    </div>
+
+                    <div>
+                        <strong style={{ color: 'var(--text)' }}>🔵 PONTO 4 (SAÍDA DA BOMBA)</strong><br/>
+                        h₄ = {data.pontos[3].h.toFixed(2)} kJ/kg<br/>
+                        Líquido comprimido retorna à caldeira (Processo 4 → 1) para receber calor e reiniciar o ciclo.
+                    </div>
+                </div>
+
               </div>
             </div>
 
